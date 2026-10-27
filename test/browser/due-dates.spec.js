@@ -128,6 +128,7 @@ test('shows permission and rate-limit errors', async ({ page, linear }) => {
 test('does not overwrite a due date someone else changed', async ({ page, linear }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
+  await expect(row(frame, 'MOB-2').locator('.due-input')).toHaveValue(shift(today(), 10));
   linear.issue('MOB-2').dueDate = shift(today(), 15);
   await row(frame, 'MOB-2').locator('.due-input').fill(shift(today(), 11));
   await row(frame, 'MOB-2').locator('.due-input').press('Enter');
