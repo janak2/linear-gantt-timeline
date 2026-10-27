@@ -15,6 +15,7 @@ export class LinearError extends Error {
 const ISSUE_FIELDS = `id identifier title url dueDate startedAt completedAt canceledAt
   state { id name type color }
   assignee { id name }
+  team { id }
   project { id }
   parent { id identifier title url }`;
 
@@ -39,12 +40,36 @@ export const PROJECT_ISSUES_QUERY = `query GanttProjectIssues($id: String!, $aft
   }
 }`;
 
+export const TEAM_QUERY = `query GanttTeam($id: String!, $after: String) {
+  team(id: $id) {
+    states(first: ${PAGE_SIZE}) { nodes { id name type color position } }
+    members(first: ${PAGE_SIZE}, after: $after) {
+      nodes { id name }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}`;
+
 export const ISSUE_QUERY = `query GanttIssue($id: String!) {
   issue(id: $id) { ${ISSUE_FIELDS} }
 }`;
 
 export const UPDATE_DUE_DATE_MUTATION = `mutation GanttUpdateDueDate($id: String!, $dueDate: TimelessDate) {
   issueUpdate(id: $id, input: { dueDate: $dueDate }) {
+    success
+    issue { ${ISSUE_FIELDS} }
+  }
+}`;
+
+export const UPDATE_STATUS_MUTATION = `mutation GanttUpdateStatus($id: String!, $stateId: String!) {
+  issueUpdate(id: $id, input: { stateId: $stateId }) {
+    success
+    issue { ${ISSUE_FIELDS} }
+  }
+}`;
+
+export const UPDATE_ASSIGNEE_MUTATION = `mutation GanttUpdateAssignee($id: String!, $assigneeId: String) {
+  issueUpdate(id: $id, input: { assigneeId: $assigneeId }) {
     success
     issue { ${ISSUE_FIELDS} }
   }
@@ -128,10 +153,29 @@ export async function fetchProjectIssues(token, projectId, fetcher = fetch) {
   return { issues, partial, truncated: true };
 }
 
+// The workflow states and active members of a team, which are the choices for its issues' status and assignee.
+export async function fetchTeam(token, id, fetcher = fetch) {
+  const members = [];
+  let states = [];
+  let after = null;
+  for (let page = 0; page < MAX_PAGES; page++) {
+    const { data } = await graphql(token, TEAM_QUERY, { id, after }, fetcher);
+    if (!data.team) throw new LinearError('graphql', 'Linear did not return a team for this project.');
+    states = data.team.states.nodes;
+    members.push(...data.team.members.nodes);
+    const { hasNextPage, endCursor } = data.team.members.pageInfo;
+    if (!hasNextPage || !endCursor || endCursor === after) break;
+    after = endCursor;
+  }
+  return { id, states, members };
+}
+
 export async function loadProject(token, route, fetcher = fetch) {
   const { project, milestones, organization } = await findProject(token, route, fetcher);
   const { issues, partial, truncated } = await fetchProjectIssues(token, project.id, fetcher);
-  return { organization, project, milestones, issues, partial, truncated };
+  const teamIds = [...new Set(issues.map(issue => issue.team?.id).filter(Boolean))];
+  const teams = await Promise.all(teamIds.map(id => fetchTeam(token, id, fetcher)));
+  return { organization, project, milestones, issues, teams, partial, truncated };
 }
 
 async function fetchIssue(token, id, fetcher) {
@@ -146,17 +190,36 @@ async function fetchIssue(token, id, fetcher) {
   return result.data.issue;
 }
 
-// Saves only dueDate, and only if nobody changed it since the chart loaded.
-export async function updateDueDate(token, { projectId, issueId, expected, dueDate }, fetcher = fetch) {
+const EDITS = {
+  dueDate: { mutation: UPDATE_DUE_DATE_MUTATION, current: issue => issue.dueDate ?? null, name: 'due date' },
+  stateId: { mutation: UPDATE_STATUS_MUTATION, current: issue => issue.state?.id ?? null, name: 'status' },
+  assigneeId: { mutation: UPDATE_ASSIGNEE_MUTATION, current: issue => issue.assignee?.id ?? null, name: 'assignee' }
+};
+
+// Saves only the one field, and only if nobody changed it since the chart loaded.
+async function updateField(token, { projectId, issueId, expected }, field, value, fetcher) {
+  const edit = EDITS[field];
   const current = await fetchIssue(token, issueId, fetcher);
   if (current.project?.id !== projectId) {
     throw new LinearError('not_found', 'This issue is no longer in this project. Refresh the chart.');
   }
-  if ((current.dueDate ?? null) !== expected) return { conflict: true, issue: current };
-  const { data, errors } = await graphql(token, UPDATE_DUE_DATE_MUTATION, { id: issueId, dueDate }, fetcher);
+  if (edit.current(current) !== expected) return { conflict: true, issue: current };
+  const { data, errors } = await graphql(token, edit.mutation, { id: issueId, [field]: value }, fetcher);
   const payload = data.issueUpdate;
   if (errors.length || !payload?.success || !payload.issue) {
-    throw new LinearError('graphql', errors[0]?.extensions?.userPresentableMessage || 'Linear did not save the due date.');
+    throw new LinearError('graphql', errors[0]?.extensions?.userPresentableMessage || `Linear did not save the ${edit.name}.`);
   }
   return { conflict: false, issue: payload.issue };
+}
+
+export function updateDueDate(token, { dueDate, ...request }, fetcher = fetch) {
+  return updateField(token, request, 'dueDate', dueDate, fetcher);
+}
+
+export function updateStatus(token, { stateId, ...request }, fetcher = fetch) {
+  return updateField(token, request, 'stateId', stateId, fetcher);
+}
+
+export function updateAssignee(token, { assigneeId, ...request }, fetcher = fetch) {
+  return updateField(token, request, 'assigneeId', assigneeId, fetcher);
 }

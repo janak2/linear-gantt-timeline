@@ -17,10 +17,11 @@ const state = {
   project: null,
   issues: [],
   milestones: [],
+  teams: new Map(), // team id -> { states, members }
   scale: 'week',
   range: null,
   renderedScale: null,
-  saves: new Map(), // issue id -> { status: 'pending' | 'saved' | 'error', dueDate?, message? }
+  saves: new Map(), // issue id -> { status: 'pending' | 'saved' | 'error', changes?, message? }
   collapsed: new Set(),
   byParent: false,
   loadId: 0,
@@ -69,6 +70,7 @@ function showGate(title, text, action = null) {
   state.project = null;
   state.issues = [];
   state.milestones = [];
+  state.teams.clear();
   state.saves.clear();
   chart.hidden = true;
   chart.replaceChildren();
@@ -122,6 +124,7 @@ async function load() {
     state.project = data.project;
     state.issues = data.issues;
     state.milestones = data.milestones;
+    state.teams = new Map(data.teams.map(team => [team.id, team]));
     state.saves.clear();
     if (Object.hasOwn(SCALES, view?.scale)) setScale(view.scale);
     if (Array.isArray(view?.collapsed)) state.collapsed = new Set(view.collapsed);
@@ -170,11 +173,15 @@ function fillFilters(filters) {
   }
   const people = [...assignees].sort((a, b) => a[1].localeCompare(b[1]));
   setOptions($('assignee'), 'All assignees', unassigned ? [...people, ['none', 'Unassigned']] : people, filters.assignee);
-  const order = type => (STATE_ORDER.indexOf(type) + 1) || STATE_ORDER.length + 1;
   setOptions($('status'), 'All statuses', [...statuses]
-    .sort((a, b) => order(a[1]) - order(b[1]) || a[0].localeCompare(b[0]))
+    .sort((a, b) => stateOrder(a[1]) - stateOrder(b[1]) || a[0].localeCompare(b[0]))
     .map(([name]) => [name, name]), filters.status);
 }
+
+const stateOrder = type => (STATE_ORDER.indexOf(type) + 1) || STATE_ORDER.length + 1;
+const byState = (a, b) => stateOrder(a.type) - stateOrder(b.type) || (a.position ?? 0) - (b.position ?? 0);
+const byName = (a, b) => a.name.localeCompare(b.name);
+const withCurrent = (choices, current) => current && !choices.some(choice => choice.id === current.id) ? [current, ...choices] : choices;
 
 function setScale(scale) {
   state.scale = scale;
@@ -205,10 +212,10 @@ function visibleIssues() {
     (!search || `${issue.identifier} ${issue.title}`.toLowerCase().includes(search)));
 }
 
-// While a save is pending, show the new due date.
+// While a save is pending, show the new value.
 function shown(issue) {
   const save = state.saves.get(issue.id);
-  return save?.status === 'pending' ? { ...issue, dueDate: save.dueDate } : issue;
+  return save?.status === 'pending' ? { ...issue, ...save.changes } : issue;
 }
 
 function safeURL(url) {
@@ -321,33 +328,60 @@ function drawTrack(track, issue, schedule, pending) {
   }
 }
 
-function wireDueInput(input, issue) {
+// Waits for the value to settle (typing a date, or arrowing through a list) before saving.
+function wireEdit(control, commit) {
   let timer = null;
-  const commit = () => {
+  const flush = () => {
     clearTimeout(timer);
     timer = null;
-    const value = input.value || null;
-    if (value === null || isCalendarDate(value)) save(issue, value);
+    commit();
   };
-  input.addEventListener('change', () => {
+  control.addEventListener('change', () => {
     clearTimeout(timer);
-    timer = setTimeout(commit, INPUT_DELAY_MS);
+    timer = setTimeout(flush, INPUT_DELAY_MS);
   });
-  input.addEventListener('blur', () => { if (timer) commit(); });
-  input.addEventListener('keydown', event => {
+  control.addEventListener('blur', () => { if (timer) flush(); });
+  control.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      commit();
+      flush();
     }
   });
+}
+
+// Holds only the current choice until focused, so rows stay cheap to render for large teams.
+function choiceSelect(attributes, current, choices, pick, none = null) {
+  const option = choice => new Option(choice?.name ?? none, choice?.id ?? '');
+  const select = element('select', attributes, option(current));
+  let list = [];
+  select.addEventListener('focus', () => {
+    list = choices();
+    select.replaceChildren(...(none ? [option(null)] : []), ...list.map(option));
+    select.value = current?.id ?? '';
+  }, { once: true });
+  wireEdit(select, () => pick(select.value ? list.find(choice => choice.id === select.value) : null));
+  return select;
 }
 
 function issueRow({ issue, display, schedule }, today, warning = false, depth = 0) {
   const saving = state.saves.get(issue.id);
   const pending = saving?.status === 'pending';
-  const color = /^#[0-9a-f]{6}$/i.test(issue.state.color) ? issue.state.color : '#8b8e9b';
-  const done = issue.state.type === 'completed' || issue.state.type === 'canceled';
+  const color = /^#[0-9a-f]{6}$/i.test(display.state.color) ? display.state.color : '#8b8e9b';
+  const done = display.state.type === 'completed' || display.state.type === 'canceled';
+  const team = state.teams.get(issue.team?.id);
   const title = element('a', { className: 'title', target: '_top', href: safeURL(issue.url), 'data-focus': `${issue.id}:link` }, issue.title);
+  const status = choiceSelect({
+    className: 'choice status-choice',
+    'aria-label': `Status for ${issue.identifier}`,
+    'data-focus': `${issue.id}:status`,
+    disabled: pending
+  }, display.state, () => withCurrent(team?.states ?? [], issue.state).toSorted(byState), choice => save(issue, 'state', choice));
+  const assignee = choiceSelect({
+    className: 'choice who',
+    'aria-label': `Assignee for ${issue.identifier}`,
+    'data-focus': `${issue.id}:assignee`,
+    disabled: pending
+  }, display.assignee, () => withCurrent(team?.members ?? [], issue.assignee).toSorted(byName), choice => save(issue, 'assignee', choice), 'Unassigned');
   const input = element('input', {
     type: 'date',
     className: `due-input${schedule.due !== null && schedule.due < today && !done ? ' overdue' : ''}`,
@@ -356,7 +390,10 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
     'data-focus': `${issue.id}:due`,
     disabled: pending
   });
-  wireDueInput(input, issue);
+  wireEdit(input, () => {
+    const value = input.value || null;
+    if (value === null || isCalendarDate(value)) save(issue, 'dueDate', value);
+  });
   const clear = element('button', {
     type: 'button',
     className: 'clear',
@@ -365,15 +402,16 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
     'data-focus': `${issue.id}:clear`,
     disabled: pending || !display.dueDate
   }, '×');
-  clear.addEventListener('click', () => save(issue, null));
+  clear.addEventListener('click', () => save(issue, 'dueDate', null));
   const started = schedule.started !== null ? `Started ${formatDay(schedule.started)}` : 'Not started';
   const label = element('div', { className: 'label' },
     element('div', { className: 'line' },
-      element('span', { className: 'dot', 'data-type': issue.state.type, title: issue.state.name }),
+      element('span', { className: 'dot', 'data-type': display.state.type, title: display.state.name }),
       element('span', { className: 'identifier' }, issue.identifier),
-      title),
+      title,
+      status),
     element('div', { className: 'line meta' },
-      element('span', { className: 'who' }, issue.assignee?.name ?? 'Unassigned'),
+      assignee,
       '·',
       element('span', { className: `start${schedule.started === null ? ' none' : ''}` }, started),
       input,
@@ -503,7 +541,7 @@ function startDrag(event, issue, schedule, bar, marker) {
     removeEventListener('keydown', key, true);
     document.body.classList.remove('dragging');
     state.dragging = false;
-    if (commit && day !== original) return save(issue, dateFromDay(day));
+    if (commit && day !== original) return save(issue, 'dueDate', dateFromDay(day));
     place(original);
     if (state.renderQueued) render();
   };
@@ -538,20 +576,33 @@ function clearSaved(id) {
   }
 }
 
-async function save(issue, dueDate) {
-  const expected = issue.dueDate ?? null;
-  if (dueDate === expected || state.saves.get(issue.id)?.status === 'pending') return;
+// The issue fields the chart can change, keyed by the issue property that shows them.
+const EDITS = {
+  dueDate: {
+    type: 'UPDATE_DUE_DATE', field: 'dueDate', name: 'due date', id: date => date ?? null,
+    changed: date => date ? `to ${formatDay(dayFromDate(date), { year: 'numeric' })}` : 'by clearing it'
+  },
+  state: { type: 'UPDATE_STATUS', field: 'stateId', name: 'status', id: status => status.id, changed: status => `to ${status.name}` },
+  assignee: {
+    type: 'UPDATE_ASSIGNEE', field: 'assigneeId', name: 'assignee', id: user => user?.id ?? null,
+    changed: user => user ? `to ${user.name}` : 'by unassigning it'
+  }
+};
+
+async function save(issue, key, value) {
+  const edit = EDITS[key];
+  const expected = edit.id(issue[key]);
+  if (edit.id(value) === expected || state.saves.get(issue.id)?.status === 'pending') return;
   const project = state.project;
-  state.saves.set(issue.id, { status: 'pending', dueDate });
+  state.saves.set(issue.id, { status: 'pending', changes: { [key]: value } });
   render();
   let outcome;
   try {
-    const result = await send('UPDATE_DUE_DATE', { ...route, projectId: project.id, issueId: issue.id, expected, dueDate });
+    const result = await send(edit.type, { ...route, projectId: project.id, issueId: issue.id, expected, [edit.field]: edit.id(value) });
     if (state.project !== project) return;
     replaceIssue(result.issue);
-    const now = result.issue.dueDate ? `to ${formatDay(dayFromDate(result.issue.dueDate), { year: 'numeric' })}` : 'by clearing it';
     outcome = result.conflict
-      ? { status: 'error', message: `Someone else changed this due date in Linear ${now}. Your change was not saved.` }
+      ? { status: 'error', message: `Someone else changed this ${edit.name} in Linear ${edit.changed(result.issue[key])}. Your change was not saved.` }
       : { status: 'saved' };
   } catch (error) {
     if (state.project !== project) return;

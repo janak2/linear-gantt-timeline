@@ -1,6 +1,6 @@
 import { LINEAR_CLIENT_ID, OAUTH_SCOPES } from './config.js';
 import { createAuth } from './auth.js';
-import { LinearError, loadProject, updateDueDate } from './linear.js';
+import { LinearError, loadProject, updateAssignee, updateDueDate, updateStatus } from './linear.js';
 import { senderPage, validateRequest } from './messages.js';
 
 const ready = chrome.storage.local.setAccessLevel({ accessLevel: 'TRUSTED_CONTEXTS' });
@@ -37,6 +37,12 @@ async function handle(request) {
     case 'UPDATE_DUE_DATE':
       await requireWorkspace(request.route.workspace);
       return auth.withAccessToken(token => updateDueDate(token, request));
+    case 'UPDATE_STATUS':
+      await requireWorkspace(request.route.workspace);
+      return auth.withAccessToken(token => updateStatus(token, request));
+    case 'UPDATE_ASSIGNEE':
+      await requireWorkspace(request.route.workspace);
+      return auth.withAccessToken(token => updateAssignee(token, request));
   }
 }
 

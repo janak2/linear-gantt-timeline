@@ -21,6 +21,7 @@ function issue(n, prefix, projectId, fields) {
     canceledAt: null,
     state: { id: 'todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa' },
     assignee: null,
+    team: { id: prefix === 'WEB' ? 'team-web' : 'team-mob' },
     project: { id: projectId },
     parent: null,
     ...fields
@@ -31,6 +32,8 @@ const inProgress = { id: 'started', name: 'In Progress', type: 'started', color:
 const done = { id: 'done', name: 'Done', type: 'completed', color: '#5e6ad2' };
 const maya = { id: 'user-maya', name: 'Maya Chen' };
 const sam = { id: 'user-sam', name: 'Sam Ortiz' };
+const priya = { id: 'user-priya', name: 'Priya Nair' };
+const leo = { id: 'user-leo', name: 'Leo Brandt' };
 
 // A stateful stand-in for Linear's GraphQL API and OAuth endpoints.
 export class FakeLinear {
@@ -61,6 +64,29 @@ export class FakeLinear {
       const { id, identifier, title, url } = this.issue(parent);
       this.issue(child).parent = { id, identifier, title, url };
     }
+    this.teams = [
+      {
+        id: 'team-mob',
+        states: [
+          { id: 'canceled', name: 'Canceled', type: 'canceled', color: '#95a2b3', position: 0 },
+          { ...done, position: 0 },
+          { id: 'review', name: 'In Review', type: 'started', color: '#4cb782', position: 1 },
+          { ...inProgress, position: 0 },
+          { id: 'todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa', position: 0 },
+          { id: 'backlog', name: 'Backlog', type: 'backlog', color: '#bec2c8', position: 0 }
+        ],
+        members: [sam, maya, priya]
+      },
+      {
+        id: 'team-web',
+        states: [
+          { id: 'web-todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa', position: 0 },
+          { id: 'web-started', name: 'Building', type: 'started', color: '#f2c94c', position: 0 },
+          { id: 'web-done', name: 'Shipped', type: 'completed', color: '#5e6ad2', position: 0 }
+        ],
+        members: [sam, leo]
+      }
+    ];
     this.accessTokens = new Set(['access-1']);
     this.refreshTokens = new Set(['refresh-1']);
     this.calls = [];
@@ -135,6 +161,10 @@ export class FakeLinear {
         const more = start + 100 < all.length;
         return { data: { project: { issues: { nodes: structuredClone(nodes), pageInfo: { hasNextPage: more, endCursor: more ? `cursor:${start + 100}` : null } } } } };
       }
+      case 'GanttTeam': {
+        const { states, members } = this.teams.find(team => team.id === variables.id);
+        return { data: { team: { states: { nodes: structuredClone(states) }, members: { nodes: structuredClone(members), pageInfo: { hasNextPage: false, endCursor: null } } } } };
+      }
       case 'GanttIssue': {
         const found = this.issues.find(item => item.id === variables.id);
         return found ? { data: { issue: structuredClone(found) } } : { data: null, errors: [{ message: 'Entity not found' }] };
@@ -142,6 +172,17 @@ export class FakeLinear {
       case 'GanttUpdateDueDate': {
         const found = this.issues.find(item => item.id === variables.id);
         found.dueDate = variables.dueDate;
+        return { data: { issueUpdate: { success: true, issue: structuredClone(found) } } };
+      }
+      case 'GanttUpdateStatus': {
+        const found = this.issues.find(item => item.id === variables.id);
+        const { id, name, type, color } = this.teams.flatMap(team => team.states).find(item => item.id === variables.stateId);
+        found.state = { id, name, type, color };
+        return { data: { issueUpdate: { success: true, issue: structuredClone(found) } } };
+      }
+      case 'GanttUpdateAssignee': {
+        const found = this.issues.find(item => item.id === variables.id);
+        found.assignee = variables.assigneeId ? structuredClone(this.teams.flatMap(team => team.members).find(user => user.id === variables.assigneeId)) : null;
         return { data: { issueUpdate: { success: true, issue: structuredClone(found) } } };
       }
     }

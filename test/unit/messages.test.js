@@ -18,6 +18,18 @@ test('rejects malformed due-date changes', () => {
   }
 });
 
+test('the chart may change statuses and assignees', () => {
+  const status = { type: 'UPDATE_STATUS', ...route, projectId: 'project-1', issueId: 'issue-1', expected: 'state-1', stateId: 'state-2' };
+  assert.deepEqual(Object.keys(validateRequest({ ...status, extra: 'ignored' }, 'panel.html')).sort(), ['expected', 'issueId', 'projectId', 'route', 'stateId', 'type']);
+  const assignee = { type: 'UPDATE_ASSIGNEE', ...route, projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-1' };
+  assert.equal(validateRequest(assignee, 'panel.html').assigneeId, 'user-1');
+  assert.equal(validateRequest({ ...assignee, expected: 'user-1', assigneeId: null }, 'panel.html').assigneeId, null);
+  assert.throws(() => validateRequest({ ...status, stateId: null }, 'panel.html'), /status change is not valid/);
+  assert.throws(() => validateRequest({ ...assignee, assigneeId: 'a b' }, 'panel.html'), /assignee change is not valid/);
+  assert.throws(() => validateRequest({ ...assignee, expected: undefined }, 'panel.html'), /assignee change is not valid/);
+  assert.throws(() => validateRequest(assignee, 'options.html'), /not allowed/);
+});
+
 test('each page may only send its own requests', () => {
   assert.throws(() => validateRequest({ type: 'DISCONNECT' }, 'panel.html'), /not allowed/);
   assert.throws(() => validateRequest({ type: 'LOAD_PROJECT', ...route }, 'options.html'), /not allowed/);

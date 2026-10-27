@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { MAX_PAGES, PAGE_SIZE, fetchProjectIssues, findProject, graphql, loadProject, updateDueDate } from '../../src/linear.js';
+import { MAX_PAGES, PAGE_SIZE, fetchProjectIssues, fetchTeam, findProject, graphql, loadProject, updateAssignee, updateDueDate, updateStatus } from '../../src/linear.js';
 import { graphqlServer, json, makeIssue } from './helpers.js';
 
 const route = { workspace: 'acme', slug: 'mobile-app-3f2a1b9c8d7e', key: '3f2a1b9c8d7e' };
@@ -165,4 +165,89 @@ test('reports failed and forbidden writes', async () => {
   await assert.rejects(updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, unsaved.fetcher), { code: 'graphql' });
   const missing = graphqlServer({ GanttIssue: () => json({ data: null, errors: [{ message: 'Entity not found' }] }) });
   await assert.rejects(updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, missing.fetcher), { code: 'not_found' });
+});
+
+const todo = { id: 'todo', name: 'Todo', type: 'unstarted', color: '#e2e2e2' };
+const done = { id: 'done', name: 'Done', type: 'completed', color: '#5e6ad2' };
+const maya = { id: 'user-maya', name: 'Maya Chen' };
+const teamData = (states, members, pageInfo = { hasNextPage: false, endCursor: null }) => json({ data: { team: { states: { nodes: states }, members: { nodes: members, pageInfo } } } });
+
+test("loads a team's workflow states and every page of its members", async () => {
+  const members = Array.from({ length: 5 }, (_, n) => ({ id: `user-${n}`, name: `User ${n}` }));
+  const { fetcher, calls } = graphqlServer({
+    GanttTeam: ({ after }) => {
+      const start = after ? Number(after.slice(7)) : 0;
+      const more = start + 2 < members.length;
+      return teamData([todo, done], members.slice(start, start + 2), { hasNextPage: more, endCursor: more ? `cursor-${start + 2}` : null });
+    }
+  });
+  assert.deepEqual(await fetchTeam('t', 'team-1', fetcher), { id: 'team-1', states: [todo, done], members });
+  assert.deepEqual(calls.map(call => call.variables), [{ id: 'team-1', after: null }, { id: 'team-1', after: 'cursor-2' }, { id: 'team-1', after: 'cursor-4' }]);
+});
+
+test("loads each of the project's teams once", async () => {
+  const issues = [makeIssue(1, { team: { id: 'team-1' } }), makeIssue(2, { team: { id: 'team-2' } }), makeIssue(3, { team: { id: 'team-1' } })];
+  const { fetcher, calls } = graphqlServer({
+    GanttProject: () => json({ data: { organization, projects: { nodes: [project] } } }),
+    GanttProjectIssues: pages(issues),
+    GanttTeam: ({ id }) => teamData([{ ...todo, id: `${id}-todo` }], [maya])
+  });
+  const result = await loadProject('t', route, fetcher);
+  assert.deepEqual(result.teams, [
+    { id: 'team-1', states: [{ ...todo, id: 'team-1-todo' }], members: [maya] },
+    { id: 'team-2', states: [{ ...todo, id: 'team-2-todo' }], members: [maya] }
+  ]);
+  assert.deepEqual(calls.filter(call => call.operation === 'GanttTeam').map(call => call.variables.id), ['team-1', 'team-2']);
+});
+
+function editServer(current, operation, changes = {}) {
+  return graphqlServer({
+    GanttIssue: () => json({ data: { issue: current } }),
+    [operation]: () => json({ data: { issueUpdate: { success: true, issue: { ...current, ...changes } } } })
+  });
+}
+
+test('saves only the status', async () => {
+  const { fetcher, calls } = editServer(makeIssue(1, { state: todo }), 'GanttUpdateStatus', { state: done });
+  const result = await updateStatus('t', { projectId: 'project-1', issueId: 'issue-1', expected: 'todo', stateId: 'done' }, fetcher);
+  assert.deepEqual(result, { conflict: false, issue: makeIssue(1, { state: done }) });
+  const mutation = calls.find(call => call.operation === 'GanttUpdateStatus');
+  assert.deepEqual(mutation.variables, { id: 'issue-1', stateId: 'done' });
+  assert.match(mutation.query, /input: \{ stateId: \$stateId \}/);
+});
+
+test('assigns and unassigns issues', async () => {
+  const assign = editServer(makeIssue(1), 'GanttUpdateAssignee', { assignee: maya });
+  const assigned = await updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-maya' }, assign.fetcher);
+  assert.deepEqual(assigned, { conflict: false, issue: makeIssue(1, { assignee: maya }) });
+  assert.deepEqual(assign.calls.at(-1).variables, { id: 'issue-1', assigneeId: 'user-maya' });
+  assert.match(assign.calls.at(-1).query, /input: \{ assigneeId: \$assigneeId \}/);
+
+  const unassign = editServer(makeIssue(1, { assignee: maya }), 'GanttUpdateAssignee', { assignee: null });
+  const result = await updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: 'user-maya', assigneeId: null }, unassign.fetcher);
+  assert.equal(result.issue.assignee, null);
+  assert.deepEqual(unassign.calls.at(-1).variables, { id: 'issue-1', assigneeId: null });
+});
+
+test('does not overwrite a status or assignee someone else changed', async () => {
+  const status = editServer(makeIssue(1, { state: done }), 'GanttUpdateStatus');
+  const result = await updateStatus('t', { projectId: 'project-1', issueId: 'issue-1', expected: 'todo', stateId: 'canceled' }, status.fetcher);
+  assert.deepEqual(result, { conflict: true, issue: makeIssue(1, { state: done }) });
+  const assignee = editServer(makeIssue(1, { assignee: maya }), 'GanttUpdateAssignee');
+  assert.equal((await updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-sam' }, assignee.fetcher)).conflict, true);
+  assert.ok([...status.calls, ...assignee.calls].every(call => call.operation === 'GanttIssue'));
+});
+
+test('refuses status and assignee changes outside the project and reports failed writes', async () => {
+  const elsewhere = editServer(makeIssue(1, { project: { id: 'project-9' } }), 'GanttUpdateAssignee');
+  await assert.rejects(updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-maya' }, elsewhere.fetcher), { code: 'not_found' });
+  assert.equal(elsewhere.calls.length, 1);
+
+  const unsaved = graphqlServer({
+    GanttIssue: () => json({ data: { issue: makeIssue(1) } }),
+    GanttUpdateStatus: () => json({ data: { issueUpdate: { success: false, issue: null } } }),
+    GanttUpdateAssignee: () => json({ data: { issueUpdate: { success: false, issue: null } } })
+  });
+  await assert.rejects(updateStatus('t', { projectId: 'project-1', issueId: 'issue-1', expected: 'todo', stateId: 'done' }, unsaved.fetcher), { code: 'graphql', message: 'Linear did not save the status.' });
+  await assert.rejects(updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-maya' }, unsaved.fetcher), { code: 'graphql', message: 'Linear did not save the assignee.' });
 });

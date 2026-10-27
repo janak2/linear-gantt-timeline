@@ -3,12 +3,19 @@ import { parseProjectPath } from './project-url.js';
 
 // Which extension pages may send which requests.
 const ALLOWED = {
-  'panel.html': new Set(['AUTH_STATUS', 'CONNECT', 'OPEN_OPTIONS', 'LOAD_PROJECT', 'UPDATE_DUE_DATE']),
+  'panel.html': new Set(['AUTH_STATUS', 'CONNECT', 'OPEN_OPTIONS', 'LOAD_PROJECT', 'UPDATE_DUE_DATE', 'UPDATE_STATUS', 'UPDATE_ASSIGNEE']),
   'options.html': new Set(['AUTH_STATUS', 'CONNECT', 'DISCONNECT'])
 };
 
 const isId = value => typeof value === 'string' && /^[\w-]{1,64}$/.test(value);
 const isDueDate = value => value === null || isCalendarDate(value);
+
+// The issue field each edit request changes, and what its expected and new values may be.
+const EDITS = {
+  UPDATE_DUE_DATE: { field: 'dueDate', valid: isDueDate, name: 'due-date' },
+  UPDATE_STATUS: { field: 'stateId', valid: isId, name: 'status' },
+  UPDATE_ASSIGNEE: { field: 'assigneeId', valid: value => value === null || isId(value), name: 'assignee' }
+};
 
 function route(message) {
   if (typeof message.workspace !== 'string' || typeof message.slug !== 'string') return null;
@@ -25,12 +32,13 @@ export function validateRequest(message, page) {
     if (!target) throw new Error('This project link is not valid.');
     return { type, route: target };
   }
-  if (type === 'UPDATE_DUE_DATE') {
+  if (Object.hasOwn(EDITS, type)) {
+    const { field, valid, name } = EDITS[type];
     const target = route(message);
-    if (!target || !isId(message.projectId) || !isId(message.issueId) || !isDueDate(message.expected) || !isDueDate(message.dueDate)) {
-      throw new Error('This due-date change is not valid.');
+    if (!target || !isId(message.projectId) || !isId(message.issueId) || !valid(message.expected) || !valid(message[field])) {
+      throw new Error(`This ${name} change is not valid.`);
     }
-    return { type, route: target, projectId: message.projectId, issueId: message.issueId, expected: message.expected, dueDate: message.dueDate };
+    return { type, route: target, projectId: message.projectId, issueId: message.issueId, expected: message.expected, [field]: message[field] };
   }
   return { type };
 }
