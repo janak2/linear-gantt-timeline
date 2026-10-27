@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Linear (test page)</title>
+  <style>
+    body { margin: 0; font: 14px system-ui, sans-serif; display: flex; height: 100vh; }
+    body.dark { background: #101012; color: #e6e6ea; }
+    body.light { background: #ffffff; color: #1c1c1f; }
+    aside { width: 240px; flex: none; border-right: 1px solid #8884; padding: 12px; box-sizing: border-box; }
+    aside a { display: block; padding: 4px 0; color: inherit; }
+    .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    header { height: 48px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid #8884; }
+    .tabs { display: flex; gap: 4px; }
+    .tabs a { padding: 4px 10px; border-radius: 6px; color: inherit; text-decoration: none; opacity: .65; }
+    .tabs a[aria-current="page"] { opacity: 1; background: #8883; font-weight: 600; }
+    main { flex: 1; overflow: auto; padding: 16px; }
+  </style>
+</head>
+<body class="dark">
+  <aside>
+    <nav>
+      <a id="nav-mobile" href="/acme/project/mobile-app-3f2a1b9c8d7e/overview">Mobile app</a>
+      <a id="nav-website" href="/acme/project/website-a1b2c3d4e5f6/overview">Website</a>
+      <a id="nav-ghost" href="/acme/project/ghost-ffffffffffff/overview">Missing project</a>
+      <a id="nav-beta" href="/beta/project/launch-0a0b0c0d0e0f/overview">Beta workspace</a>
+      <a id="nav-inbox" href="/acme/inbox">Inbox</a>
+    </nav>
+  </aside>
+  <div class="pane">
+    <header id="header"></header>
+    <main id="content"></main>
+  </div>
+  <script>
+    // A minimal stand-in for Linear's client-side routed project page.
+    function render() {
+      const match = /^\/([^/]+)\/project\/([^/]+)\/?([^/]*)/.exec(location.pathname);
+      header.replaceChildren();
+      if (!match) {
+        header.textContent = location.pathname;
+        content.textContent = 'Not a project page';
+        return;
+      }
+      const [, workspace, slug, view] = match;
+      const title = document.createElement('span');
+      title.textContent = slug;
+      const tabs = document.createElement('div');
+      tabs.className = 'tabs';
+      for (const name of ['overview', 'issues']) {
+        const link = document.createElement('a');
+        link.href = `/${workspace}/project/${slug}/${name}`;
+        link.textContent = name[0].toUpperCase() + name.slice(1);
+        if (name === (view || 'overview')) link.setAttribute('aria-current', 'page');
+        tabs.append(link);
+      }
+      header.append(title, tabs);
+      content.textContent = `${view || 'overview'} for ${slug}`;
+    }
+    document.addEventListener('click', event => {
+      const link = event.target.closest('a[href^="/"]');
+      if (!link || event.defaultPrevented) return;
+      event.preventDefault();
+      history.pushState(null, '', link.href);
+      render();
+    });
+    addEventListener('popstate', render);
+    window.rerender = render;
+    window.setTheme = theme => { document.body.className = theme; };
+    render();
+  </script>
+</body>
+</html>
