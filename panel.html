@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Project Gantt chart</title>
+  <link rel="stylesheet" href="src/panel.css">
+</head>
+<body>
+  <header class="toolbar">
+    <input id="search" type="search" placeholder="Search issues" aria-label="Search issues">
+    <select id="assignee" aria-label="Filter by assignee"></select>
+    <select id="status" aria-label="Filter by status"></select>
+    <div class="segmented" role="group" aria-label="Time scale">
+      <button type="button" data-scale="day" aria-pressed="false">Day</button>
+      <button type="button" data-scale="week" aria-pressed="true">Week</button>
+      <button type="button" data-scale="month" aria-pressed="false">Month</button>
+    </div>
+    <button type="button" id="today">Today</button>
+    <span class="spacer"></span>
+    <span id="count"></span>
+    <button type="button" id="refresh">Refresh</button>
+  </header>
+  <p id="notice" role="status" hidden></p>
+  <section id="gate" hidden>
+    <h1 id="gate-title"></h1>
+    <p id="gate-text"></p>
+    <button type="button" id="gate-action" class="primary" hidden></button>
+  </section>
+  <main id="chart" aria-label="Gantt chart" hidden></main>
+  <footer class="legend" id="legend" hidden>
+    <span><i class="legend-bar"></i>Actual start to due date</span>
+    <span><i class="legend-marker"></i>Due date, not started</span>
+  </footer>
+  <script type="module" src="src/panel.js"></script>
+</body>
+</html>
