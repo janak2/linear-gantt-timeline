@@ -22,6 +22,7 @@ function issue(n, prefix, projectId, fields) {
     state: { id: 'todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa' },
     assignee: null,
     project: { id: projectId },
+    parent: null,
     ...fields
   };
 }
@@ -38,7 +39,13 @@ export class FakeLinear {
     this.organization = { id: 'org-acme', name: 'Acme', urlKey: 'acme' };
     this.viewer = { id: 'user-maya', name: 'Maya Chen' };
     this.projects = [
-      { id: 'project-mobile', name: 'Mobile app', slugId: '3f2a1b9c8d7e', url: 'https://linear.app/acme/project/mobile-app-3f2a1b9c8d7e' },
+      {
+        id: 'project-mobile', name: 'Mobile app', slugId: '3f2a1b9c8d7e', url: 'https://linear.app/acme/project/mobile-app-3f2a1b9c8d7e',
+        projectMilestones: { nodes: [
+          { id: 'milestone-launch', name: 'Launch', targetDate: null, sortOrder: 2 },
+          { id: 'milestone-beta', name: 'Beta', targetDate: shift(t, 14), sortOrder: 1 }
+        ] }
+      },
       { id: 'project-website', name: 'Website', slugId: 'a1b2c3d4e5f6', url: 'https://linear.app/acme/project/website-a1b2c3d4e5f6' }
     ];
     this.issues = [
@@ -50,6 +57,10 @@ export class FakeLinear {
       issue(6, 'MOB', 'project-mobile', { title: 'Fix login crash', dueDate: shift(t, -3), assignee: maya }),
       issue(1, 'WEB', 'project-website', { title: 'Landing page', dueDate: shift(t, 3), assignee: sam })
     ];
+    for (const [child, parent] of [['MOB-2', 'WEB-1'], ['MOB-3', 'MOB-1'], ['MOB-4', 'MOB-1'], ['MOB-6', 'WEB-1']]) {
+      const { id, identifier, title, url } = this.issue(parent);
+      this.issue(child).parent = { id, identifier, title, url };
+    }
     this.accessTokens = new Set(['access-1']);
     this.refreshTokens = new Set(['refresh-1']);
     this.calls = [];

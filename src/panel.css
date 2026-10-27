@@ -50,7 +50,7 @@ a:hover { text-decoration: underline; }
 .segmented button { border-radius: 0; margin-left: -1px; }
 .segmented button:first-child { border-radius: 6px 0 0 6px; margin-left: 0; }
 .segmented button:last-child { border-radius: 0 6px 6px 0; }
-.segmented button[aria-pressed="true"] { background: var(--raised); font-weight: 600; }
+.segmented button[aria-pressed="true"], #by-parent[aria-pressed="true"] { background: var(--raised); font-weight: 600; }
 .spacer { flex: 1; }
 #count { color: var(--muted); font-size: 12px; }
 #notice { margin: 0; padding: 8px 16px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
@@ -80,9 +80,20 @@ a:hover { text-decoration: underline; }
 .units span.today-label { color: var(--today); font-weight: 600; }
 .section { min-height: 32px; }
 .section .label { font-size: 12px; font-weight: 600; color: var(--muted); flex-direction: row; align-items: center; justify-content: flex-start; gap: 6px; }
+.section-toggle { flex: 1; display: flex; align-items: center; gap: 6px; min-height: 0; padding: 4px 0; border: 0; background: transparent; text-align: left; }
+.section-toggle:hover:not(:disabled) { background: transparent; color: var(--text); }
+.section-toggle::before { content: ""; order: -1; flex: none; border: 4px solid transparent; border-right: 0; border-left-color: currentColor; transform: rotate(90deg); transition: transform .15s; }
+.section-toggle[aria-expanded="false"]::before { transform: none; }
+.section.warning .section-toggle { color: var(--danger); }
+.section.warning .section-toggle::after {
+  content: "!" / ""; order: -1; flex: none; width: 14px; height: 13px; padding-top: 3px; clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  background: var(--danger); color: var(--bg); font-size: 9px; font-weight: 700; line-height: 10px; text-align: center;
+}
 .gridline { position: absolute; top: 44px; bottom: 0; width: 1px; background: var(--grid); pointer-events: none; z-index: 0; }
 .gridline.major { background: color-mix(in srgb, var(--grid), var(--muted) 12%); }
 .today-line { position: absolute; top: 44px; bottom: 0; width: 2px; margin-left: -1px; background: var(--today); opacity: .7; pointer-events: none; z-index: 1; }
+.milestone-line { position: absolute; top: 44px; bottom: 0; width: 7px; margin-left: -3px; z-index: 1; }
+.milestone-line::before { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; border-left: 1px dashed var(--accent); opacity: .6; }
 
 .line { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--state); }
@@ -104,6 +115,13 @@ a:hover { text-decoration: underline; }
 .save-state[data-status="pending"] { color: var(--muted); }
 .save-state[data-status="saved"] { color: var(--success); }
 .save-state[data-status="error"] { color: var(--danger); cursor: help; }
+.issue .label { padding-left: calc(16px + var(--depth) * 16px); }
+.parent-row { min-height: 32px; }
+.parent-row .label { color: var(--muted); }
+.no-due { flex: none; color: var(--danger); }
+.warning .save-state:empty, .save-state:not(:empty) + .no-due { display: none; }
+.issue.warning .label { background-color: color-mix(in srgb, var(--danger) 8%, var(--bg)); box-shadow: inset 3px 0 var(--danger); }
+.issue.warning .track { background-color: color-mix(in srgb, var(--danger) 8%, transparent); }
 
 .bar {
   position: absolute; top: 11px; height: 24px; min-width: 6px; border-radius: 5px;
@@ -118,6 +136,7 @@ a:hover { text-decoration: underline; }
   background: var(--bg); border: 2px solid var(--state); border-radius: 3px; cursor: ew-resize; touch-action: none; z-index: 1;
 }
 .start-tick { position: absolute; top: 13px; height: 20px; width: 2px; background: var(--muted); border-radius: 1px; }
+.milestone { position: absolute; top: 16px; width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; z-index: 1; }
 .pending .bar, .pending .marker { opacity: .55; }
 .dragging, .dragging * { cursor: ew-resize !important; user-select: none; }
 .empty { padding: 48px 16px; text-align: center; color: var(--muted); }
@@ -126,3 +145,4 @@ a:hover { text-decoration: underline; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend-bar { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent), transparent 72%); }
 .legend-marker { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); border: 2px solid var(--accent); border-radius: 2px; }
+.legend-milestone { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; }

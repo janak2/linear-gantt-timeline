@@ -95,6 +95,24 @@ test('skips restricted issues and says some are hidden', async () => {
   assert.equal(result.partial, true);
 });
 
+test('treats a parent the user cannot access as no parent', async () => {
+  const parentError = path => ({ message: 'Forbidden', extensions: { code: 'FORBIDDEN' }, path });
+  const { fetcher } = graphqlServer({
+    GanttProjectIssues: () => json({
+      data: { project: { issues: { nodes: [makeIssue(1, { parent: null })], pageInfo: { hasNextPage: false, endCursor: null } } } },
+      errors: [parentError(['project', 'issues', 'nodes', 0, 'parent'])]
+    })
+  });
+  assert.deepEqual(await fetchProjectIssues('t', 'project-1', fetcher), { issues: [makeIssue(1, { parent: null })], partial: false, truncated: false });
+
+  const save = graphqlServer({
+    GanttIssue: () => json({ data: { issue: makeIssue(1, { parent: null }) }, errors: [parentError(['issue', 'parent'])] }),
+    GanttUpdateDueDate: () => json({ data: { issueUpdate: { success: true, issue: makeIssue(1, { parent: null, dueDate: '2026-11-03' }) } }, errors: [parentError(['issueUpdate', 'issue', 'parent'])] })
+  });
+  const result = await updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, save.fetcher);
+  assert.equal(result.issue.dueDate, '2026-11-03');
+});
+
 test('stops on a repeated cursor and discloses the page cap', async () => {
   const stuck = graphqlServer({ GanttProjectIssues: () => json({ data: { project: { issues: { nodes: [makeIssue(1)], pageInfo: { hasNextPage: true, endCursor: 'same' } } } } }) });
   await assert.rejects(fetchProjectIssues('t', 'project-1', stuck.fetcher), { code: 'graphql' });

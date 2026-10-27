@@ -10,7 +10,7 @@ test('adds one Gantt tab beside the project tabs and shows the chart in the cont
   const frame = await openGantt(page);
   await expect(row(frame, 'MOB-1')).toBeVisible();
   await expect(frame.locator('.row.issue')).toHaveCount(6);
-  await expect(frame.locator('.row.section .label')).toHaveText(['Scheduled5', 'Unscheduled1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled4', 'Unscheduled1', 'Completed1']);
   await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
 
   // The chart covers the content area only: Linear's sidebar and header stay visible.
@@ -19,11 +19,80 @@ test('adds one Gantt tab beside the project tabs and shows the chart in the cont
   expect(linear.operations('GanttProject')[0].variables.slugIds).toEqual(['mobile-app-3f2a1b9c8d7e', '3f2a1b9c8d7e']);
 });
 
+test('loads the chart before the tab is clicked without blocking the page', async ({ page, linear }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  await expect.poll(() => linear.operations('GanttProjectIssues').length).toBe(1);
+  await expect.poll(() => panelFrames(page).length).toBe(1);
+  const frame = panelFrames(page)[0];
+  await expect(frame.locator('.row.issue')).toHaveCount(6);
+  await expect(panelHost(page)).toBeHidden();
+  await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'false');
+
+  // The hidden chart over the content area takes neither keyboard focus nor clicks.
+  const seeAll = page.locator('main a', { hasText: 'See all' });
+  await seeAll.focus();
+  await page.keyboard.press('Tab');
+  expect(await page.evaluate(() => document.activeElement.getAttribute('data-linear-gantt'))).toBeNull();
+  await seeAll.click();
+  await expect(page).toHaveURL(/\/activity$/);
+
+  await ganttTab(page).click();
+  await expect(panelHost(page)).toBeVisible();
+  await expect(row(frame, 'MOB-1')).toBeVisible();
+  expect(linear.operations('GanttProjectIssues')).toHaveLength(1);
+  const line = await frame.locator('.today-line').boundingBox();
+  const chart = await frame.locator('#chart').boundingBox();
+  expect(Math.abs(line.x - (chart.x + 400 + (chart.width - 400) / 2))).toBeLessThan(40);
+});
+
 test('links issues back to Linear', async ({ page }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
   await expect(row(frame, 'MOB-2').locator('a.title')).toHaveAttribute('href', 'https://linear.app/acme/issue/MOB-2');
   await expect(row(frame, 'MOB-2').locator('a.title')).toHaveAttribute('target', '_top');
+});
+
+test('going back from an issue returns to the chart', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  await row(frame, 'MOB-2').locator('a.title').click();
+  await expect(page).toHaveURL('https://linear.app/acme/issue/MOB-2');
+  await page.goBack();
+  await expect(page).toHaveURL(`https://linear.app${MOBILE}`);
+  await expect(panelHost(page)).toBeVisible();
+  await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => panelFrames(page).length).toBe(1);
+  await expect(row(panelFrames(page)[0], 'MOB-2')).toBeVisible();
+
+  // A chart closed before leaving stays closed.
+  await page.locator('header .tabs a', { hasText: 'Overview' }).click();
+  await expect(panelHost(page)).toBeHidden();
+  await page.goto('https://linear.app/acme/issue/MOB-2');
+  await page.goBack();
+  await expect(page).toHaveURL(`https://linear.app${MOBILE}`);
+  await expect(ganttTab(page)).toHaveCount(1);
+  await expect(panelHost(page)).toHaveCount(1);
+  await expect(panelHost(page)).toBeHidden();
+  await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('reloading the page reopens the chart', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  await openGantt(page);
+  await page.reload();
+  await expect(panelHost(page)).toBeVisible();
+  await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
+  await expect.poll(() => panelFrames(page).length).toBe(1);
+  await expect(row(panelFrames(page)[0], 'MOB-2')).toBeVisible();
+
+  // A chart closed before reloading stays closed.
+  await page.locator('header .tabs a', { hasText: 'Overview' }).click();
+  await expect(panelHost(page)).toBeHidden();
+  await page.reload();
+  await expect(ganttTab(page)).toHaveCount(1);
+  await expect(panelHost(page)).toHaveCount(1);
+  await expect(panelHost(page)).toBeHidden();
+  await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'false');
 });
 
 test('labels actual start dates and never invents them', async ({ page }) => {
@@ -35,6 +104,30 @@ test('labels actual start dates and never invents them', async ({ page }) => {
   await expect(row(frame, 'MOB-2').locator('.marker')).toHaveCount(1);
   await expect(row(frame, 'MOB-2').locator('.bar')).toHaveCount(0);
   await expect(row(frame, 'MOB-3').locator('.track > *')).toHaveCount(0);
+});
+
+test('shows project milestones in order, with a marker at each target date', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  const milestones = frame.locator('.row.milestone-row');
+  await expect(milestones.locator('.title')).toHaveText(['Beta', 'Launch']);
+  await expect(milestones.locator('.meta')).toHaveText([/^Target /, 'No target date']);
+  await expect(milestones.nth(0).locator('.milestone')).toHaveCount(1);
+  await expect(milestones.nth(1).locator('.milestone')).toHaveCount(0);
+  await expect(frame.locator('.milestone-line')).toHaveCount(1);
+});
+
+test('names the milestone when hovering its line', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  const line = frame.locator('.milestone-line');
+  await expect(line).toHaveAttribute('title', /^Beta\nTarget /);
+  const hit = await line.evaluate(line => {
+    const box = line.getBoundingClientRect();
+    const empty = document.querySelector('.row.issue[data-issue="project-mobile-issue-3"]').getBoundingClientRect();
+    return { width: box.width, hit: document.elementFromPoint(box.left + box.width / 2, empty.top + empty.height / 2) === line };
+  });
+  expect(hit).toEqual({ width: 7, hit: true });
 });
 
 test('keeps Linear navigation working and closes the chart when you leave', async ({ page }) => {
@@ -62,8 +155,10 @@ test('switching projects removes the stale chart', async ({ page }) => {
 
   await page.locator('#nav-website').click();
   await expect(page).toHaveURL(new RegExp(`${WEBSITE}$`));
-  await expect(panelHost(page)).toHaveCount(0);
   await expect(ganttTab(page)).toHaveCount(1);
+  await expect(panelHost(page)).toHaveCount(1);
+  await expect(panelHost(page)).toBeHidden();
+  await expect.poll(() => panelFrames(page).map(frame => new URL(frame.url()).searchParams.get('slug'))).toEqual(['website-a1b2c3d4e5f6']);
 
   const website = await openGantt(page);
   expect(website.url()).toContain('slug=website-a1b2c3d4e5f6');
@@ -97,6 +192,8 @@ test('does not duplicate the tab after re-renders or reloads', async ({ page }) 
     await expect(ganttTab(page)).toHaveCount(1);
   }
   await expect(page.locator('header .tabs > *')).toHaveText(['Overview', 'Issues', 'Gantt']);
+  await expect(panelHost(page)).toHaveCount(1);
+  await expect.poll(() => panelFrames(page).length).toBe(1);
 
   await openGantt(page);
   await page.evaluate(() => window.rerender());
@@ -105,7 +202,8 @@ test('does not duplicate the tab after re-renders or reloads', async ({ page }) 
 
   await page.reload();
   await expect(ganttTab(page)).toHaveCount(1);
-  await expect(panelHost(page)).toHaveCount(0);
+  await expect(panelHost(page)).toHaveCount(1);
+  await expect(panelHost(page)).toBeVisible();
   await openGantt(page);
   expect(panelFrames(page)).toHaveLength(1);
 });

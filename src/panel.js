@@ -16,10 +16,13 @@ const chart = $('chart');
 const state = {
   project: null,
   issues: [],
+  milestones: [],
   scale: 'week',
   range: null,
   renderedScale: null,
   saves: new Map(), // issue id -> { status: 'pending' | 'saved' | 'error', dueDate?, message? }
+  collapsed: new Set(),
+  byParent: false,
   loadId: 0,
   dragging: false,
   renderQueued: false
@@ -65,6 +68,7 @@ function setControls(enabled) {
 function showGate(title, text, action = null) {
   state.project = null;
   state.issues = [];
+  state.milestones = [];
   state.saves.clear();
   chart.hidden = true;
   chart.replaceChildren();
@@ -112,9 +116,16 @@ async function load() {
     }
     const data = await send('LOAD_PROJECT', route);
     if (id !== state.loadId) return;
+    const filtersKey = `filters:${data.project.id}`;
+    const { view, [filtersKey]: filters = {} } = await chrome.storage.local.get(['view', filtersKey]);
+    if (id !== state.loadId) return;
     state.project = data.project;
     state.issues = data.issues;
+    state.milestones = data.milestones;
     state.saves.clear();
+    if (Object.hasOwn(SCALES, view?.scale)) setScale(view.scale);
+    if (Array.isArray(view?.collapsed)) state.collapsed = new Set(view.collapsed);
+    setByParent(view?.byParent === true);
     const notes = [];
     if (data.truncated) notes.push(`Showing the first ${data.issues.length.toLocaleString()} issues in this project.`);
     if (data.partial) notes.push('Some issues are hidden because you do not have access to them.');
@@ -123,7 +134,8 @@ async function load() {
     chart.hidden = false;
     $('legend').hidden = false;
     setControls(true);
-    fillFilters();
+    $('search').value = filters.search ?? '';
+    fillFilters(filters);
     render({ scrollTo: localDay(new Date()) });
   } catch (error) {
     if (id === state.loadId) gateFor(error);
@@ -142,13 +154,12 @@ async function connect() {
   await load();
 }
 
-function setOptions(select, allLabel, options) {
-  const current = select.value;
+function setOptions(select, allLabel, options, current = select.value) {
   select.replaceChildren(new Option(allLabel, ''), ...options.map(([value, label]) => new Option(label, value)));
   select.value = options.some(([value]) => value === current) ? current : '';
 }
 
-function fillFilters() {
+function fillFilters(filters) {
   const assignees = new Map();
   const statuses = new Map();
   let unassigned = false;
@@ -158,11 +169,30 @@ function fillFilters() {
     statuses.set(issue.state.name, issue.state.type);
   }
   const people = [...assignees].sort((a, b) => a[1].localeCompare(b[1]));
-  setOptions($('assignee'), 'All assignees', unassigned ? [...people, ['none', 'Unassigned']] : people);
+  setOptions($('assignee'), 'All assignees', unassigned ? [...people, ['none', 'Unassigned']] : people, filters.assignee);
   const order = type => (STATE_ORDER.indexOf(type) + 1) || STATE_ORDER.length + 1;
   setOptions($('status'), 'All statuses', [...statuses]
     .sort((a, b) => order(a[1]) - order(b[1]) || a[0].localeCompare(b[0]))
-    .map(([name]) => [name, name]));
+    .map(([name]) => [name, name]), filters.status);
+}
+
+function setScale(scale) {
+  state.scale = scale;
+  for (const button of document.querySelectorAll('[data-scale]')) button.setAttribute('aria-pressed', String(button.dataset.scale === scale));
+}
+
+function setByParent(on) {
+  state.byParent = on;
+  $('by-parent').setAttribute('aria-pressed', String(on));
+}
+
+function saveView() {
+  chrome.storage.local.set({ view: { scale: state.scale, collapsed: [...state.collapsed], byParent: state.byParent } });
+}
+
+function changeFilters() {
+  render();
+  chrome.storage.local.set({ [`filters:${state.project.id}`]: { search: $('search').value, assignee: $('assignee').value, status: $('status').value } });
 }
 
 function visibleIssues() {
@@ -222,10 +252,44 @@ function headerRow(range, today) {
   return element('div', { className: 'row head' }, element('div', { className: 'label' }, 'Issue'), element('div', { className: 'track' }, months, units));
 }
 
-function sectionRow(title, count) {
-  return element('div', { className: 'row section' },
-    element('div', { className: 'label' }, title, element('span', {}, String(count))),
+function sectionRow(title, count, warning) {
+  const expanded = !state.collapsed.has(title);
+  const toggle = element('button', { type: 'button', className: 'section-toggle', 'aria-expanded': String(expanded), 'data-focus': `section:${title}` },
+    title, element('span', {}, String(count)));
+  toggle.addEventListener('click', () => {
+    if (expanded) state.collapsed.add(title);
+    else state.collapsed.delete(title);
+    render();
+    saveView();
+  });
+  return element('div', { className: `row section${warning ? ' warning' : ''}` },
+    element('div', { className: 'label' }, toggle),
     element('div', { className: 'track' }));
+}
+
+function sectionRows(title, items, rows, warning = false) {
+  if (!items.length) return [];
+  return [sectionRow(title, items.length, warning), ...(state.collapsed.has(title) ? [] : rows(items))];
+}
+
+function arrange(items) {
+  if (!state.byParent) return items.map(item => ({ item, depth: 0 }));
+  const ids = new Set(items.map(item => item.issue.id));
+  const children = Map.groupBy(items.filter(item => item.issue.parent), item => item.issue.parent.id);
+  const entries = [];
+  const add = (item, depth) => {
+    entries.push({ item, depth });
+    for (const child of children.get(item.issue.id) ?? []) add(child, depth + 1);
+  };
+  for (const item of items) {
+    const parent = item.issue.parent;
+    if (!parent) add(item, 0);
+    else if (!ids.has(parent.id) && children.get(parent.id)[0] === item) {
+      entries.push({ parent, depth: 0 });
+      for (const child of children.get(parent.id)) add(child, 1);
+    }
+  }
+  return entries;
 }
 
 function statusText(save) {
@@ -278,7 +342,7 @@ function wireDueInput(input, issue) {
   });
 }
 
-function issueRow({ issue, display, schedule }, today) {
+function issueRow({ issue, display, schedule }, today, warning = false, depth = 0) {
   const saving = state.saves.get(issue.id);
   const pending = saving?.status === 'pending';
   const color = /^#[0-9a-f]{6}$/i.test(issue.state.color) ? issue.state.color : '#8b8e9b';
@@ -314,14 +378,39 @@ function issueRow({ issue, display, schedule }, today) {
       element('span', { className: `start${schedule.started === null ? ' none' : ''}` }, started),
       input,
       clear,
-      element('span', { className: 'save-state', 'data-status': saving?.status, 'data-status-for': issue.id, title: saving?.message }, statusText(saving))));
+      element('span', { className: 'save-state', 'data-status': saving?.status, 'data-status-for': issue.id, title: saving?.message }, statusText(saving)),
+      ...(warning ? [element('span', { className: 'no-due' }, 'No due date')] : [])));
   const track = element('div', { className: 'track' });
   drawTrack(track, issue, schedule, pending);
-  return element('div', { className: `row issue${pending ? ' pending' : ''}`, 'data-issue': issue.id, style: { '--state': color } }, label, track);
+  return element('div', { className: `row issue${pending ? ' pending' : ''}${warning ? ' warning' : ''}`, 'data-issue': issue.id, style: { '--state': color, '--depth': depth } }, label, track);
+}
+
+function parentRow(parent) {
+  return element('div', { className: 'row parent-row' },
+    element('div', { className: 'label' },
+      element('div', { className: 'line' },
+        element('span', { className: 'identifier' }, parent.identifier),
+        element('a', { className: 'title', target: '_top', href: safeURL(parent.url), 'data-focus': `${parent.id}:parent` }, parent.title))),
+    element('div', { className: 'track' }));
+}
+
+function milestoneRow({ milestone, day }) {
+  const target = day !== null ? `Target ${formatDay(day, { year: 'numeric' })}` : 'No target date';
+  const track = element('div', { className: 'track' });
+  if (day !== null) {
+    track.append(element('div', { className: 'milestone', title: `${milestone.name}\n${target}`, style: { left: `${dayToX(day, state.range, state.scale) + pxPerDay() / 2}px` } }));
+  }
+  return element('div', { className: 'row milestone-row' },
+    element('div', { className: 'label' },
+      element('div', { className: 'line' }, element('span', { className: 'title' }, milestone.name)),
+      element('div', { className: 'line meta' }, target)),
+    track);
 }
 
 const startOf = item => item.schedule.started ?? item.schedule.due;
+const dated = item => item.schedule.kind !== 'unscheduled';
 const byIdentifier = (a, b) => a.issue.identifier.localeCompare(b.issue.identifier, undefined, { numeric: true });
+const bySchedule = (a, b) => startOf(a) - startOf(b) || a.schedule.due - b.schedule.due || byIdentifier(a, b);
 
 function render({ scrollTo = null } = {}) {
   if (state.dragging) {
@@ -334,7 +423,11 @@ function render({ scrollTo = null } = {}) {
   const previous = state.range && { range: state.range, scale: state.renderedScale, left: chart.scrollLeft, top: chart.scrollTop, center: centerDay() };
 
   const today = localDay(new Date());
-  const range = chartRange(state.issues.map(issue => issueSchedule(shown(issue))), today, state.scale);
+  const milestones = state.milestones.map(milestone => ({ milestone, day: dayFromDate(milestone.targetDate) }));
+  const range = chartRange([
+    ...state.issues.map(issue => issueSchedule(shown(issue))),
+    ...milestones.map(({ day }) => ({ started: null, due: day }))
+  ], today, state.scale);
   state.range = range;
   state.renderedScale = state.scale;
   const width = chartWidth(range, state.scale);
@@ -344,17 +437,29 @@ function render({ scrollTo = null } = {}) {
     grid.append(element('div', { className: `gridline${tick.major ? ' major' : ''}`, style: { left: `${LABEL_WIDTH + dayToX(tick.day, range, state.scale)}px` } }));
   }
   grid.append(element('div', { className: 'today-line', title: 'Today', style: { left: `${LABEL_WIDTH + dayToX(today, range, state.scale) + pxPerDay() / 2}px` } }));
+  for (const { milestone, day } of milestones) {
+    if (day !== null) grid.append(element('div', { className: 'milestone-line', title: `${milestone.name}\nTarget ${formatDay(day, { year: 'numeric' })}`, style: { left: `${LABEL_WIDTH + dayToX(day, range, state.scale) + pxPerDay() / 2}px` } }));
+  }
 
   const visible = visibleIssues().map(issue => {
     const display = shown(issue);
     return { issue, display, schedule: issueSchedule(display) };
   });
-  const scheduled = visible.filter(item => item.schedule.kind !== 'unscheduled')
-    .sort((a, b) => startOf(a) - startOf(b) || a.schedule.due - b.schedule.due || byIdentifier(a, b));
-  const unscheduled = visible.filter(item => item.schedule.kind === 'unscheduled')
+  const open = visible.filter(item => item.issue.state.type !== 'completed');
+  const done = visible.filter(item => item.issue.state.type === 'completed');
+  const undated = open.filter(item => !dated(item));
+  const critical = undated.filter(item => item.issue.state.type === 'started').sort(byIdentifier);
+  const scheduled = open.filter(dated).sort(bySchedule);
+  const unscheduled = undated.filter(item => item.issue.state.type !== 'started')
     .sort((a, b) => STATE_ORDER.indexOf(b.issue.state.type) - STATE_ORDER.indexOf(a.issue.state.type) || byIdentifier(a, b));
-  if (scheduled.length) grid.append(sectionRow('Scheduled', scheduled.length), ...scheduled.map(item => issueRow(item, today)));
-  if (unscheduled.length) grid.append(sectionRow('Unscheduled', unscheduled.length), ...unscheduled.map(item => issueRow(item, today)));
+  const completed = [...done.filter(dated).sort(bySchedule), ...done.filter(item => !dated(item)).sort(byIdentifier)];
+  const toRows = (warning = false) => items => arrange(items)
+    .map(({ item, parent, depth }) => parent ? parentRow(parent) : issueRow(item, today, warning, depth));
+  grid.append(...sectionRows('In progress, no due date', critical, toRows(true), true));
+  grid.append(...sectionRows('Milestones', milestones, items => items.map(milestoneRow)));
+  grid.append(...sectionRows('Scheduled', scheduled, toRows()));
+  grid.append(...sectionRows('Unscheduled', unscheduled, toRows()));
+  grid.append(...sectionRows('Completed', completed, toRows()));
   if (!visible.length) grid.append(element('p', { className: 'empty' }, state.issues.length ? 'No issues match these filters.' : 'This project has no issues yet.'));
   chart.replaceChildren(grid);
 
@@ -460,16 +565,21 @@ async function save(issue, dueDate) {
 }
 
 applyTheme(params.get('theme'));
-$('search').addEventListener('input', () => render());
-$('assignee').addEventListener('change', () => render());
-$('status').addEventListener('change', () => render());
+$('search').addEventListener('input', changeFilters);
+$('assignee').addEventListener('change', changeFilters);
+$('status').addEventListener('change', changeFilters);
 for (const button of document.querySelectorAll('[data-scale]')) {
   button.addEventListener('click', () => {
-    state.scale = button.dataset.scale;
-    for (const other of document.querySelectorAll('[data-scale]')) other.setAttribute('aria-pressed', String(other === button));
+    setScale(button.dataset.scale);
     render();
+    saveView();
   });
 }
+$('by-parent').addEventListener('click', () => {
+  setByParent(!state.byParent);
+  render();
+  saveView();
+});
 $('today').addEventListener('click', () => scrollToDay(localDay(new Date())));
 $('refresh').addEventListener('click', load);
 

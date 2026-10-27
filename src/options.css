@@ -17,3 +17,4 @@ button:disabled { opacity: .5; cursor: default; }
 #status.error { color: var(--danger); }
 .muted { color: var(--muted); font-size: 12.5px; }
 a { color: var(--accent); }
+.github svg { vertical-align: -2px; margin-right: 4px; }

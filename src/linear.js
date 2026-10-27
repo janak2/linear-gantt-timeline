@@ -15,7 +15,8 @@ export class LinearError extends Error {
 const ISSUE_FIELDS = `id identifier title url dueDate startedAt completedAt canceledAt
   state { id name type color }
   assignee { id name }
-  project { id }`;
+  project { id }
+  parent { id identifier title url }`;
 
 export const VIEWER_QUERY = `query GanttViewer {
   viewer { id name }
@@ -25,7 +26,7 @@ export const VIEWER_QUERY = `query GanttViewer {
 export const PROJECT_QUERY = `query GanttProject($slugIds: [String!]!) {
   organization { id name urlKey }
   projects(filter: { slugId: { in: $slugIds } }, first: 2) {
-    nodes { id name slugId url }
+    nodes { id name slugId url projectMilestones(first: 100) { nodes { id name targetDate sortOrder } } }
   }
 }`;
 
@@ -65,7 +66,8 @@ export async function graphql(token, query, variables = {}, fetcher = fetch) {
   }
   let body = null;
   try { body = await response.json(); } catch { /* Non-JSON error bodies are classified by status below. */ }
-  const errors = Array.isArray(body?.errors) ? body.errors : [];
+  // A parent the user cannot access comes back as null with an error; that is not a failure.
+  const errors = (Array.isArray(body?.errors) ? body.errors : []).filter(error => !error?.path?.includes('parent'));
   const codes = errors.map(error => error?.extensions?.code);
   if (response.status === 429 || codes.includes('RATELIMITED')) {
     const retryAfter = Number(response.headers.get('Retry-After')) || null;
@@ -100,8 +102,9 @@ export async function findProject(token, { workspace, slug, key }, fetcher = fet
   if (matches.length !== 1) {
     throw new LinearError('project_unavailable', 'This project could not be identified, so no issues are shown.');
   }
-  const { id, name, url } = matches[0];
-  return { project: { id, name, url }, organization: data.organization };
+  const { id, name, url, projectMilestones } = matches[0];
+  const milestones = (projectMilestones?.nodes ?? []).sort((a, b) => a.sortOrder - b.sortOrder);
+  return { project: { id, name, url }, milestones, organization: data.organization };
 }
 
 export async function fetchProjectIssues(token, projectId, fetcher = fetch) {
@@ -126,9 +129,9 @@ export async function fetchProjectIssues(token, projectId, fetcher = fetch) {
 }
 
 export async function loadProject(token, route, fetcher = fetch) {
-  const { project, organization } = await findProject(token, route, fetcher);
+  const { project, milestones, organization } = await findProject(token, route, fetcher);
   const { issues, partial, truncated } = await fetchProjectIssues(token, project.id, fetcher);
-  return { organization, project, issues, partial, truncated };
+  return { organization, project, milestones, issues, partial, truncated };
 }
 
 async function fetchIssue(token, id, fetcher) {

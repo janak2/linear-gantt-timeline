@@ -7,11 +7,13 @@ const EXTENSION_ORIGIN = new URL(PANEL_URL).origin;
 const STYLE_KEYS = ['color', 'background-color', 'box-shadow', 'border-color', 'font-weight', 'opacity'];
 const HEADER_MAX_HEIGHT = 120;
 const Z_INDEX = 30;
+const OPEN_KEY = 'linear-gantt:open';
 
 let view = null; // State for the project page currently shown.
 let timer = null;
 let observer = null;
 let themeObserver = null;
+let restorePath = null;
 
 export function start() {
   // A reloaded extension leaves its old elements behind; the old copy tears itself down.
@@ -22,8 +24,13 @@ export function start() {
   for (const root of [document.documentElement, document.body]) themeObserver.observe(root, { attributes: true });
   addEventListener('resize', schedule);
   addEventListener('message', onFrameMessage);
+  addEventListener('pagehide', onPageHide);
   document.addEventListener('click', onDocumentClick, true);
   globalThis.navigation?.addEventListener('currententrychange', schedule);
+  if (sessionStorage.getItem(OPEN_KEY) === location.pathname) {
+    sessionStorage.removeItem(OPEN_KEY);
+    if (['back_forward', 'reload'].includes(performance.getEntriesByType('navigation')[0]?.type)) restorePath = location.pathname;
+  }
   update();
 }
 
@@ -33,6 +40,7 @@ function teardown() {
   clearTimeout(timer);
   removeEventListener('resize', schedule);
   removeEventListener('message', onFrameMessage);
+  removeEventListener('pagehide', onPageHide);
   document.removeEventListener('click', onDocumentClick, true);
   globalThis.navigation?.removeEventListener('currententrychange', schedule);
   removeView();
@@ -63,8 +71,11 @@ function update() {
   }
   view.nav = nav;
   if (!view.tab?.isConnected || view.tab.previousElementSibling !== nav.items.at(-1)) insertTab(nav);
+  if (!view.host) createPanel();
+  if (restorePath === location.pathname) open();
+  restorePath = null;
   syncTheme();
-  if (view.open) position();
+  position();
 }
 
 function removeView() {
@@ -78,7 +89,7 @@ function removeView() {
 // The project's tabs (Overview, Issues, saved views) are links to sibling routes of the
 // same project, each possibly wrapped in several elements. A tab row is an element whose
 // children each hold exactly one such link, to distinct views, side by side on one line.
-// Pick the row furthest from the sidebar.
+// Pick the topmost row: rows in the page, such as milestones linking to overview and issues, sit below the header.
 function findProjectNav(route) {
   const groups = new Map();
   for (const link of document.querySelectorAll('a[href*="/project/"]')) {
@@ -100,7 +111,7 @@ function findProjectNav(route) {
     if (new Set(tabs.map(([tab]) => tab.view)).size !== tabs.length || !onOneLine(links)) continue;
     candidates.push({ container, items: [...items.keys()] });
   }
-  candidates.sort((a, b) => b.container.getBoundingClientRect().left - a.container.getBoundingClientRect().left);
+  candidates.sort((a, b) => a.container.getBoundingClientRect().top - b.container.getBoundingClientRect().top);
   return candidates[0] ?? null;
 }
 
@@ -158,9 +169,8 @@ function insertTab(nav) {
 
 function open() {
   if (!view?.tab) return;
-  if (!view.host) createPanel();
   view.open = true;
-  view.host.style.display = 'block';
+  view.host.style.visibility = 'visible';
   position();
   setActive();
   view.frame.focus();
@@ -169,7 +179,7 @@ function open() {
 function close() {
   if (!view?.open) return;
   view.open = false;
-  view.host.style.display = 'none';
+  view.host.style.visibility = 'hidden';
   resetTabStyles();
   view.tab?.setAttribute('aria-pressed', 'false');
 }
@@ -177,7 +187,7 @@ function close() {
 function createPanel() {
   const host = document.createElement('div');
   host.setAttribute(MARK, 'panel');
-  host.style.cssText = `position:fixed;z-index:${Z_INDEX};display:none;`;
+  host.style.cssText = `position:fixed;z-index:${Z_INDEX};visibility:hidden;`;
   const frame = document.createElement('iframe');
   frame.title = 'Project Gantt chart';
   frame.style.cssText = 'display:block;width:100%;height:100%;border:0;';
@@ -271,6 +281,12 @@ function syncTheme() {
 
 function onDocumentClick(event) {
   if (view?.open && view.nav?.container.contains(event.target) && !view.tab?.contains(event.target)) close();
+}
+
+// Issue links in the chart leave the page, so Back reloads it with the chart closed.
+function onPageHide() {
+  if (view?.open) sessionStorage.setItem(OPEN_KEY, location.pathname);
+  else if (sessionStorage.getItem(OPEN_KEY) === location.pathname) sessionStorage.removeItem(OPEN_KEY);
 }
 
 function onFrameMessage(event) {

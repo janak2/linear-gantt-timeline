@@ -11,6 +11,7 @@
     <input id="search" type="search" placeholder="Search issues" aria-label="Search issues">
     <select id="assignee" aria-label="Filter by assignee"></select>
     <select id="status" aria-label="Filter by status"></select>
+    <button type="button" id="by-parent" aria-pressed="false">Group by parent</button>
     <div class="segmented" role="group" aria-label="Time scale">
       <button type="button" data-scale="day" aria-pressed="false">Day</button>
       <button type="button" data-scale="week" aria-pressed="true">Week</button>
@@ -31,6 +32,7 @@
   <footer class="legend" id="legend" hidden>
     <span><i class="legend-bar"></i>Actual start to due date</span>
     <span><i class="legend-marker"></i>Due date, not started</span>
+    <span><i class="legend-milestone"></i>Milestone target date</span>
   </footer>
   <script type="module" src="src/panel.js"></script>
 </body>
