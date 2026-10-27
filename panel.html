@@ -11,7 +11,13 @@
     <input id="search" type="search" placeholder="Search issues" aria-label="Search issues">
     <select id="assignee" aria-label="Filter by assignee"></select>
     <select id="status" aria-label="Filter by status"></select>
-    <button type="button" id="by-parent" aria-pressed="false">Group by parent</button>
+    <label class="group-by">Group by
+      <select id="group-by">
+        <option value="none">None</option>
+        <option value="parent">Parent</option>
+        <option value="assignee">Assignee</option>
+      </select>
+    </label>
     <div class="segmented" role="group" aria-label="Time scale">
       <button type="button" data-scale="day" aria-pressed="false">Day</button>
       <button type="button" data-scale="week" aria-pressed="true">Week</button>

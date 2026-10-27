@@ -15,7 +15,7 @@ Gantt View for Linear is a Chrome extension that adds a Gantt chart to Linear pr
 
 - The access token is kept in Chrome's extension session storage and is cleared when Chrome closes.
 - The refresh token and account summary are kept in Chrome's extension local storage, restricted to the extension's own pages and background worker, so that you stay signed in after restarting Chrome.
-- Chart view settings are kept in the same local storage so the chart looks the same next time: the time scale, collapsed groups, and grouping by parent, and for each project (by project ID) the search text and assignee and status filters. Disconnecting does not remove them; uninstalling the extension does.
+- Chart view settings are kept in the same local storage so the chart looks the same next time: the time scale, collapsed groups (an assignee group is kept by the assignee's user ID), and grouping (none, by parent, or by assignee), and for each project (by project ID) the search text and assignee and status filters. Disconnecting does not remove them; uninstalling the extension does.
 - Issue and team data is held in memory only while a chart is open.
 - Tokens are never given to Linear's web page or to any website.
 

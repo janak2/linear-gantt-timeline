@@ -22,8 +22,8 @@ const state = {
   range: null,
   renderedScale: null,
   saves: new Map(), // issue id -> { status: 'pending' | 'saved' | 'error', changes?, message? }
-  collapsed: new Set(),
-  byParent: false,
+  collapsed: new Set(), // section titles, and `${section}/${assignee id or 'none'}` for assignee groups
+  groupBy: 'none',
   loadId: 0,
   dragging: false,
   renderQueued: false
@@ -128,7 +128,7 @@ async function load() {
     state.saves.clear();
     if (Object.hasOwn(SCALES, view?.scale)) setScale(view.scale);
     if (Array.isArray(view?.collapsed)) state.collapsed = new Set(view.collapsed);
-    setByParent(view?.byParent === true);
+    setGroupBy(view?.groupBy ?? (view?.byParent === true ? 'parent' : 'none'));
     const notes = [];
     if (data.truncated) notes.push(`Showing the first ${data.issues.length.toLocaleString()} issues in this project.`);
     if (data.partial) notes.push('Some issues are hidden because you do not have access to them.');
@@ -188,13 +188,13 @@ function setScale(scale) {
   for (const button of document.querySelectorAll('[data-scale]')) button.setAttribute('aria-pressed', String(button.dataset.scale === scale));
 }
 
-function setByParent(on) {
-  state.byParent = on;
-  $('by-parent').setAttribute('aria-pressed', String(on));
+function setGroupBy(groupBy) {
+  state.groupBy = ['parent', 'assignee'].includes(groupBy) ? groupBy : 'none';
+  $('group-by').value = state.groupBy;
 }
 
 function saveView() {
-  chrome.storage.local.set({ view: { scale: state.scale, collapsed: [...state.collapsed], byParent: state.byParent } });
+  chrome.storage.local.set({ view: { scale: state.scale, collapsed: [...state.collapsed], groupBy: state.groupBy } });
 }
 
 function changeFilters() {
@@ -259,28 +259,35 @@ function headerRow(range, today) {
   return element('div', { className: 'row head' }, element('div', { className: 'label' }, 'Issue'), element('div', { className: 'track' }, months, units));
 }
 
-function sectionRow(title, count, warning) {
-  const expanded = !state.collapsed.has(title);
-  const toggle = element('button', { type: 'button', className: 'section-toggle', 'aria-expanded': String(expanded), 'data-focus': `section:${title}` },
+function sectionRow(title, count, className, key) {
+  const expanded = !state.collapsed.has(key);
+  const toggle = element('button', { type: 'button', className: 'section-toggle', 'aria-expanded': String(expanded), 'data-focus': `section:${key}` },
     title, element('span', {}, String(count)));
   toggle.addEventListener('click', () => {
-    if (expanded) state.collapsed.add(title);
-    else state.collapsed.delete(title);
+    if (expanded) state.collapsed.add(key);
+    else state.collapsed.delete(key);
     render();
     saveView();
   });
-  return element('div', { className: `row section${warning ? ' warning' : ''}` },
+  return element('div', { className: `row ${className}` },
     element('div', { className: 'label' }, toggle),
     element('div', { className: 'track' }));
 }
 
-function sectionRows(title, items, rows, warning = false) {
+function sectionRows(title, items, rows, className = 'section', key = title) {
   if (!items.length) return [];
-  return [sectionRow(title, items.length, warning), ...(state.collapsed.has(title) ? [] : rows(items))];
+  return [sectionRow(title, items.length, className, key), ...(state.collapsed.has(key) ? [] : rows(items, key))];
+}
+
+// Unassigned last and everyone else by name; issues keep their order within a group.
+function assigneeGroups(items) {
+  return [...Map.groupBy(items, item => item.issue.assignee?.id ?? 'none')]
+    .map(([id, group]) => ({ id, name: group[0].issue.assignee?.name ?? 'Unassigned', items: group }))
+    .sort((a, b) => (a.id === 'none') - (b.id === 'none') || a.name.localeCompare(b.name));
 }
 
 function arrange(items) {
-  if (!state.byParent) return items.map(item => ({ item, depth: 0 }));
+  if (state.groupBy !== 'parent') return items.map(item => ({ item, depth: 0 }));
   const ids = new Set(items.map(item => item.issue.id));
   const children = Map.groupBy(items.filter(item => item.issue.parent), item => item.issue.parent.id);
   const entries = [];
@@ -491,9 +498,12 @@ function render({ scrollTo = null } = {}) {
   const unscheduled = undated.filter(item => item.issue.state.type !== 'started')
     .sort((a, b) => STATE_ORDER.indexOf(b.issue.state.type) - STATE_ORDER.indexOf(a.issue.state.type) || byIdentifier(a, b));
   const completed = [...done.filter(dated).sort(bySchedule), ...done.filter(item => !dated(item)).sort(byIdentifier)];
-  const toRows = (warning = false) => items => arrange(items)
+  const issueRows = warning => items => arrange(items)
     .map(({ item, parent, depth }) => parent ? parentRow(parent) : issueRow(item, today, warning, depth));
-  grid.append(...sectionRows('In progress, no due date', critical, toRows(true), true));
+  const toRows = (warning = false) => (items, section) => state.groupBy === 'assignee'
+    ? assigneeGroups(items).flatMap(group => sectionRows(group.name, group.items, issueRows(warning), 'subsection', `${section}/${group.id}`))
+    : issueRows(warning)(items);
+  grid.append(...sectionRows('In progress, no due date', critical, toRows(true), 'section warning'));
   grid.append(...sectionRows('Milestones', milestones, items => items.map(milestoneRow)));
   grid.append(...sectionRows('Scheduled', scheduled, toRows()));
   grid.append(...sectionRows('Unscheduled', unscheduled, toRows()));
@@ -626,8 +636,8 @@ for (const button of document.querySelectorAll('[data-scale]')) {
     saveView();
   });
 }
-$('by-parent').addEventListener('click', () => {
-  setByParent(!state.byParent);
+$('group-by').addEventListener('change', () => {
+  setGroupBy($('group-by').value);
   render();
   saveView();
 });
