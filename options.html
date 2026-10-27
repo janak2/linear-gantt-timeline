@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Gantt View for Linear</title>
+  <link rel="stylesheet" href="src/options.css">
+</head>
+<body>
+  <main>
+    <h1>Gantt View for Linear</h1>
+    <p>Adds a Gantt tab to every Linear project. Bars run from an issue's actual start to its due date, and you can change due dates from the chart.</p>
+    <p id="status" role="status">Checking your connection…</p>
+    <div class="actions">
+      <button type="button" id="connect" class="primary" hidden>Connect Linear</button>
+      <button type="button" id="disconnect" hidden>Disconnect</button>
+    </div>
+    <p class="muted">Sign-in uses Linear OAuth with read and write access. Your sign-in and issue data stay in this browser and are sent only to Linear. <a href="https://github.com/janak2/linear-gantt/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
+  </main>
+  <script type="module" src="src/options.js"></script>
+</body>
+</html>
