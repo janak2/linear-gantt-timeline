@@ -75,8 +75,10 @@ function removeView() {
   view = null;
 }
 
-// The project's tabs (Overview, Issues, saved views) are links to sibling routes
-// of the same project. Pick the group of at least two such links furthest from the sidebar.
+// The project's tabs (Overview, Issues, saved views) are links to sibling routes of the
+// same project, each possibly wrapped in several elements. A tab row is an element whose
+// children each hold exactly one such link, to distinct views, side by side on one line.
+// Pick the row furthest from the sidebar.
 function findProjectNav(route) {
   const groups = new Map();
   for (const link of document.querySelectorAll('a[href*="/project/"]')) {
@@ -84,22 +86,35 @@ function findProjectNav(route) {
     const url = new URL(link.href, location.href);
     const target = url.origin === location.origin && parseProjectPath(url.pathname);
     if (!target?.view || target.workspace !== route.workspace || target.key !== route.key) continue;
-    for (const item of [link, link.parentElement]) {
-      const container = item?.parentElement;
-      if (!container) continue;
-      const group = groups.get(container) ?? { container, items: [], views: new Set() };
-      if (!group.items.includes(item)) group.items.push(item);
-      group.views.add(target.view);
-      groups.set(container, group);
+    for (let item = link; item.parentElement && item !== document.body; item = item.parentElement) {
+      const group = groups.get(item.parentElement) ?? { container: item.parentElement, items: new Map() };
+      group.items.set(item, [...(group.items.get(item) ?? []), { link, view: target.view }]);
+      groups.set(item.parentElement, group);
     }
   }
-  const candidates = [...groups.values()].filter(group => group.views.size >= 2 && group.items.length === group.views.size);
+  const candidates = [];
+  for (const { container, items } of groups.values()) {
+    const tabs = [...items.values()];
+    if (tabs.length < 2 || tabs.some(links => links.length !== 1)) continue;
+    const links = tabs.map(([tab]) => tab.link);
+    if (new Set(tabs.map(([tab]) => tab.view)).size !== tabs.length || !onOneLine(links)) continue;
+    candidates.push({ container, items: [...items.keys()] });
+  }
   candidates.sort((a, b) => b.container.getBoundingClientRect().left - a.container.getBoundingClientRect().left);
   return candidates[0] ?? null;
 }
 
+function onOneLine(elements) {
+  const middle = element => { const box = element.getBoundingClientRect(); return box.top + box.height / 2; };
+  const first = elements[0].getBoundingClientRect();
+  return elements.every(element => Math.abs(middle(element) - middle(elements[0])) < first.height / 2);
+}
+
 const isActive = item => [item, ...item.querySelectorAll('a')].some(node =>
-  node.getAttribute('aria-current') === 'page' || node.getAttribute('aria-selected') === 'true' || node.hasAttribute('data-active'));
+  node.getAttribute('aria-current') === 'page' || node.getAttribute('aria-selected') === 'true' || node.getAttribute('data-active') === 'true');
+
+// Linear styles the link inside each tab, not the wrappers around it.
+const styled = item => item.matches('a') ? item : item.querySelector('a') ?? item;
 
 function insertTab(nav) {
   restoreNativeTab();
@@ -137,7 +152,7 @@ function insertTab(nav) {
   });
   nav.items.at(-1).after(tab);
   view.tab = tab;
-  view.tabStyle = tab.getAttribute('style');
+  view.tabStyle = styled(tab).getAttribute('style');
   if (view.open) setActive();
 }
 
@@ -202,13 +217,14 @@ function snapshotStyle(element) {
 
 // Show Gantt as the selected tab by borrowing the selected native tab's look.
 function setActive() {
-  const tab = view.tab;
-  tab.setAttribute('aria-pressed', 'true');
-  const native = view.nav.items.find(isActive);
-  if (!native) {
+  view.tab.setAttribute('aria-pressed', 'true');
+  const tab = styled(view.tab);
+  const item = view.nav.items.find(isActive);
+  if (!item) {
     tab.style.boxShadow = 'inset 0 -2px currentColor';
     return;
   }
+  const native = styled(item);
   const active = snapshotStyle(native);
   const inactive = snapshotStyle(tab);
   view.saved = { native, style: native.getAttribute('style') };
@@ -227,8 +243,9 @@ function restoreNativeTab() {
 function resetTabStyles() {
   restoreNativeTab();
   if (!view?.tab) return;
-  if (view.tabStyle === null) view.tab.removeAttribute('style');
-  else view.tab.setAttribute('style', view.tabStyle);
+  const tab = styled(view.tab);
+  if (view.tabStyle === null) tab.removeAttribute('style');
+  else tab.setAttribute('style', view.tabStyle);
 }
 
 // Light text means a dark theme. A canvas converts any CSS color (Linear uses lch()) to RGB.

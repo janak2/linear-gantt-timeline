@@ -115,18 +115,20 @@ test('follows the Linear theme', async ({ page }) => {
   const frame = await openGantt(page);
   await expect(frame.locator('html')).toHaveAttribute('data-theme', 'dark');
   const overview = page.locator('header .tabs a', { hasText: 'Overview' });
-  await expect(ganttTab(page)).toHaveCSS('opacity', '1');
+  const gantt = ganttTab(page).locator('a');
+  await expect(gantt).toHaveCSS('opacity', '1');
+  await expect(gantt).toHaveCSS('font-weight', '600');
   await expect(overview).toHaveCSS('opacity', '0.65');
 
   await page.evaluate(() => window.setTheme('light'));
   await expect(frame.locator('html')).toHaveAttribute('data-theme', 'light');
-  await expect(ganttTab(page)).toHaveCSS('color', 'rgb(28, 28, 31)');
-  await expect(ganttTab(page)).toHaveCSS('opacity', '1');
+  await expect(gantt).toHaveCSS('color', 'rgb(28, 28, 31)');
+  await expect(gantt).toHaveCSS('opacity', '1');
   await expect(overview).toHaveCSS('opacity', '0.65');
 
   await page.evaluate(() => window.setTheme('dark'));
   await expect(frame.locator('html')).toHaveAttribute('data-theme', 'dark');
-  await expect(ganttTab(page)).toHaveCSS('color', 'rgb(230, 230, 234)');
+  await expect(gantt).toHaveCSS('color', 'rgb(230, 230, 234)');
 });
 
 test('can be used with the keyboard', async ({ page, linear }) => {

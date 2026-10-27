@@ -12,8 +12,9 @@
     .pane { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     header { height: 48px; flex: none; display: flex; align-items: center; gap: 16px; padding: 0 16px; border-bottom: 1px solid #8884; }
     .tabs { display: flex; gap: 4px; }
-    .tabs a { padding: 4px 10px; border-radius: 6px; color: inherit; text-decoration: none; opacity: .65; }
-    .tabs a[aria-current="page"] { opacity: 1; background: #8883; font-weight: 600; }
+    header a, main a { color: inherit; }
+    .tabs a { display: block; padding: 4px 10px; border-radius: 6px; text-decoration: none; opacity: .65; }
+    .tabs a[data-active="true"] { opacity: 1; background: #8883; font-weight: 600; }
     main { flex: 1; overflow: auto; padding: 16px; }
   </style>
 </head>
@@ -42,7 +43,8 @@
         return;
       }
       const [, workspace, slug, view] = match;
-      const title = document.createElement('span');
+      const title = document.createElement('a');
+      title.href = `/${workspace}/project/${slug}/overview`;
       title.textContent = slug;
       const tabs = document.createElement('div');
       tabs.className = 'tabs';
@@ -50,11 +52,22 @@
         const link = document.createElement('a');
         link.href = `/${workspace}/project/${slug}/${name}`;
         link.textContent = name[0].toUpperCase() + name.slice(1);
-        if (name === (view || 'overview')) link.setAttribute('aria-current', 'page');
-        tabs.append(link);
+        if (name === (view || 'overview')) link.setAttribute('data-active', 'true');
+        // Like Linear, wrap each tab link in several single-child elements.
+        let tab = link;
+        for (let i = 0; i < 3; i++) {
+          const wrapper = document.createElement('div');
+          wrapper.append(tab);
+          tab = wrapper;
+        }
+        tabs.append(tab);
       }
       header.append(title, tabs);
-      content.textContent = `${view || 'overview'} for ${slug}`;
+      const seeAll = document.createElement('a');
+      seeAll.href = `/${workspace}/project/${slug}/activity`;
+      seeAll.textContent = 'See all';
+      content.textContent = `${view || 'overview'} for ${slug} `;
+      content.append(seeAll);
     }
     document.addEventListener('click', event => {
       const link = event.target.closest('a[href^="/"]');
