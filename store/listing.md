@@ -32,9 +32,9 @@ Connect with your Linear account. The extension talks only to Linear and has no 
 
 ## Support
 
-**Support site:** https://github.com/janak2/linear-gantt/issues
+**Support site:** https://github.com/janak2/linear-gantt-timeline/issues
 
-**Homepage:** https://github.com/janak2/linear-gantt
+**Homepage:** https://github.com/janak2/linear-gantt-timeline
 
 ## Privacy practices
 
@@ -62,7 +62,7 @@ Certifications:
 - I do not use or transfer user data for purposes that are unrelated to my item's single purpose.
 - I do not use or transfer user data to determine creditworthiness or for lending purposes.
 
-**Privacy policy URL:** https://github.com/janak2/linear-gantt/blob/main/docs/privacy.md
+**Privacy policy URL:** https://github.com/janak2/linear-gantt-timeline/blob/main/docs/privacy.md
 
 ## Test instructions for reviewers
 

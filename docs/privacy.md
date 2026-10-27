@@ -31,4 +31,4 @@ Click **Disconnect** on the extension's options page to delete the stored tokens
 
 ## Contact
 
-Questions or requests: [github.com/janak2/linear-gantt/issues](https://github.com/janak2/linear-gantt/issues).
+Questions or requests: [github.com/janak2/linear-gantt-timeline/issues](https://github.com/janak2/linear-gantt-timeline/issues).
