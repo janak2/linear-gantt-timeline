@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Gantt View for Linear",
+  "version": "0.1.0",
+  "description": "Adds a Gantt tab to Linear projects and lets you change issue due dates from the chart.",
+  "minimum_chrome_version": "120",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAnlF1++6/H6UyTdn+TbAA9D6t7+cYEcaPeaKid7sj0InFlWbHCu2oSCbxWPli/7HETtnKI6UZH9NDq+9Pd93bIqE3lfaGpxrrlFaU2xnQuzDfVYNqnvkxq7EAdJMPzocO/jupi/IYZOuEe7bg+nyrw6AnggGij1NTIKE9tfhbMQEWsDjxyDXYFR8AM9F8Hsj0AUkCHjgrlYcaZOo9bZ5nYu1mznJw6ewXAX2LpHWMR5yB9YliLZpzHgPAEjsCnQGDbOhgMlr+7f2qzyAxQgW0PPkBKPcXn9NcEQkn1D3mKlAetCUVaZpc2PSronFe2ND58EK6zCJWKljdFV/NdjnUmQIDAQAB",
+  "permissions": ["storage", "identity"],
+  "host_permissions": ["https://api.linear.app/*"],
+  "background": { "service_worker": "src/background.js", "type": "module" },
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
+  "action": {
+    "default_title": "Gantt View for Linear",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png" }
+  },
+  "options_page": "options.html",
+  "content_scripts": [{
+    "matches": ["https://linear.app/*"],
+    "js": ["src/content.js"],
+    "run_at": "document_idle"
+  }],
+  "web_accessible_resources": [{
+    "resources": ["panel.html", "src/page/adapter.js", "src/project-url.js"],
+    "matches": ["https://linear.app/*"]
+  }]
+}

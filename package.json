@@ -1,0 +1,21 @@
+{
+  "name": "linear-gantt",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Gantt View for Linear: a Chrome extension that adds a Gantt tab to Linear projects.",
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "test": "node --test \"test/unit/*.test.js\"",
+    "test:browser": "playwright test",
+    "icons": "node scripts/icons.mjs",
+    "screenshots": "node scripts/screenshots.mjs",
+    "package": "node scripts/package.mjs"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1"
+  }
+}
