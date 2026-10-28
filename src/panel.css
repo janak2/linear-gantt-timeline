@@ -110,6 +110,7 @@ a:hover { text-decoration: underline; }
 
 .line { display: flex; align-items: center; gap: 6px; min-width: 0; white-space: nowrap; }
 .dot { flex: none; width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--state); }
+.dot[data-type="backlog"] { border-style: dashed; }
 .dot[data-type="started"] { background: linear-gradient(90deg, var(--state) 50%, transparent 50%); }
 .dot[data-type="completed"] { background: var(--state); }
 .dot[data-type="canceled"] { background: var(--muted); border-color: var(--muted); }

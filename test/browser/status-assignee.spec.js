@@ -38,6 +38,14 @@ test('clicking the status icon opens the status list', async ({ page }) => {
   await expect(status(frame, 'MOB-2')).toHaveAttribute('title', 'Todo');
 });
 
+test('draws Backlog issues with a dashed ring and Todo issues with a solid one', async ({ page, linear }) => {
+  linear.issue('MOB-2').state = { id: 'backlog', name: 'Backlog', type: 'backlog', color: '#bec2c8' };
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  await expect(row(frame, 'MOB-2').locator('.dot')).toHaveCSS('border-top-style', 'dashed');
+  await expect(row(frame, 'MOB-3').locator('.dot')).toHaveCSS('border-top-style', 'solid');
+});
+
 test("offers the statuses and members of each issue's own team", async ({ page, linear }) => {
   Object.assign(linear.issue('MOB-6'), { team: { id: 'team-web' }, state: { id: 'web-todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa' } });
   await page.goto(`https://linear.app${MOBILE}`);
