@@ -9,8 +9,10 @@
 <body>
   <header class="toolbar">
     <input id="search" type="search" placeholder="Search issues" aria-label="Search issues">
-    <select id="assignee" aria-label="Filter by assignee"></select>
-    <select id="status" aria-label="Filter by status"></select>
+    <button type="button" id="assignee" class="filter" popovertarget="assignee-menu" title="Filter by assignee" data-all="All assignees" data-many="assignees">All assignees</button>
+    <div id="assignee-menu" class="menu" popover></div>
+    <button type="button" id="status" class="filter" popovertarget="status-menu" title="Filter by status" data-all="All statuses" data-many="statuses">All statuses</button>
+    <div id="status-menu" class="menu" popover></div>
     <label class="group-by">Group by
       <select id="group-by">
         <option value="none">None</option>

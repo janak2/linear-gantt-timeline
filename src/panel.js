@@ -157,9 +157,20 @@ async function connect() {
   await load();
 }
 
-function setOptions(select, allLabel, options, current = select.value) {
-  select.replaceChildren(new Option(allLabel, ''), ...options.map(([value, label]) => new Option(label, value)));
-  select.value = options.some(([value]) => value === current) ? current : '';
+const selected = id => [...$(`${id}-menu`).querySelectorAll('input:checked')].map(input => input.value);
+const asList = value => Array.isArray(value) ? value : value ? [value] : [];
+
+function showSelected(id) {
+  const button = $(id);
+  const checked = $(`${id}-menu`).querySelectorAll('input:checked');
+  button.textContent = checked.length > 1 ? `${checked.length} ${button.dataset.many}` : checked[0]?.parentElement.textContent ?? button.dataset.all;
+}
+
+function setOptions(id, options, current) {
+  $(`${id}-menu`).replaceChildren(
+    ...options.map(([value, label]) => element('label', {}, element('input', { type: 'checkbox', value, checked: current.includes(value) }), label)),
+    element('button', { type: 'button', className: 'clear-filter' }, 'Clear'));
+  showSelected(id);
 }
 
 function fillFilters(filters) {
@@ -172,10 +183,10 @@ function fillFilters(filters) {
     statuses.set(issue.state.name, issue.state.type);
   }
   const people = [...assignees].sort((a, b) => a[1].localeCompare(b[1]));
-  setOptions($('assignee'), 'All assignees', unassigned ? [...people, ['none', 'Unassigned']] : people, filters.assignee);
-  setOptions($('status'), 'All statuses', [...statuses]
+  setOptions('assignee', unassigned ? [...people, ['none', 'Unassigned']] : people, asList(filters.assignee));
+  setOptions('status', [...statuses]
     .sort((a, b) => stateOrder(a[1]) - stateOrder(b[1]) || a[0].localeCompare(b[0]))
-    .map(([name]) => [name, name]), filters.status);
+    .map(([name]) => [name, name]), asList(filters.status));
 }
 
 const stateOrder = type => (STATE_ORDER.indexOf(type) + 1) || STATE_ORDER.length + 1;
@@ -199,16 +210,16 @@ function saveView() {
 
 function changeFilters() {
   render();
-  chrome.storage.local.set({ [`filters:${state.project.id}`]: { search: $('search').value, assignee: $('assignee').value, status: $('status').value } });
+  chrome.storage.local.set({ [`filters:${state.project.id}`]: { search: $('search').value, assignee: selected('assignee'), status: selected('status') } });
 }
 
 function visibleIssues() {
   const search = $('search').value.trim().toLowerCase();
-  const assignee = $('assignee').value;
-  const status = $('status').value;
+  const assignees = selected('assignee');
+  const statuses = selected('status');
   return state.issues.filter(issue =>
-    (!assignee || (assignee === 'none' ? !issue.assignee : issue.assignee?.id === assignee)) &&
-    (!status || issue.state.name === status) &&
+    (!assignees.length || assignees.includes(issue.assignee?.id ?? 'none')) &&
+    (!statuses.length || statuses.includes(issue.state.name)) &&
     (!search || `${issue.identifier} ${issue.title}`.toLowerCase().includes(search)));
 }
 
@@ -629,8 +640,24 @@ async function save(issue, key, value) {
 
 applyTheme(params.get('theme'));
 $('search').addEventListener('input', changeFilters);
-$('assignee').addEventListener('change', changeFilters);
-$('status').addEventListener('change', changeFilters);
+for (const id of ['assignee', 'status']) {
+  const menu = $(`${id}-menu`);
+  const change = () => {
+    showSelected(id);
+    changeFilters();
+  };
+  menu.addEventListener('change', change);
+  menu.addEventListener('click', event => {
+    if (!event.target.matches('.clear-filter')) return;
+    for (const input of menu.querySelectorAll('input:checked')) input.checked = false;
+    change();
+  });
+  menu.addEventListener('beforetoggle', () => {
+    const box = $(id).getBoundingClientRect();
+    menu.style.top = `${box.bottom + 4}px`;
+    menu.style.left = `${box.left}px`;
+  });
+}
 for (const button of document.querySelectorAll('[data-scale]')) {
   button.addEventListener('click', () => {
     setScale(button.dataset.scale);
@@ -649,8 +676,9 @@ $('refresh').addEventListener('click', load);
 addEventListener('message', event => {
   if (event.source === parent && event.origin === LINEAR_ORIGIN && event.data?.type === 'linear-gantt:theme') applyTheme(event.data.theme);
 });
+addEventListener('blur', () => document.querySelector(':popover-open')?.hidePopover());
 document.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && !state.dragging && !event.target.matches?.('input, select')) {
+  if (event.key === 'Escape' && !state.dragging && !event.target.matches?.('input, select, [popovertarget], [popover] *')) {
     parent.postMessage({ type: 'linear-gantt:focus-tab' }, LINEAR_ORIGIN);
   }
 });

@@ -1,4 +1,4 @@
-import { MOBILE, expect, openGantt, row, test } from './harness.js';
+import { MOBILE, expect, filterBy, openGantt, row, test } from './harness.js';
 
 const identifiers = frame => frame.locator('.row.issue .identifier, .row.parent-row .identifier');
 const stored = (worker, key) => worker.evaluate(async key => (await chrome.storage.local.get(key))[key], key);
@@ -34,7 +34,7 @@ test('nests deeper levels and uses a placeholder for a parent hidden by a filter
   await expect(identifiers(frame)).toHaveText(['MOB-1', 'MOB-4', 'MOB-2', 'WEB-1', 'MOB-6', 'MOB-1', 'MOB-3', 'MOB-5']);
   await expect(row(frame, 'MOB-2').locator('.label')).toHaveCSS('padding-left', '48px');
 
-  await frame.locator('#assignee').selectOption({ label: 'Sam Ortiz' });
+  await filterBy(frame, 'assignee', 'Sam Ortiz');
   await expect(identifiers(frame)).toHaveText(['MOB-1', 'MOB-4', 'MOB-2']);
   await expect(frame.locator('.row.parent-row .identifier')).toHaveText(['MOB-1']);
   await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled2']);

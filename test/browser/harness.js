@@ -60,6 +60,16 @@ export async function openGantt(page) {
 
 export const row = (frame, identifier) => frame.locator('.row.issue').filter({ has: frame.locator('.identifier', { hasText: new RegExp(`^${identifier}$`) }) });
 
+// Sets a toolbar filter ('assignee' or 'status') to exactly these options; none means all.
+export async function filterBy(frame, id, ...labels) {
+  const menu = frame.locator(`#${id}-menu`);
+  await frame.locator(`#${id}`).click();
+  await menu.getByRole('button', { name: 'Clear' }).click();
+  for (const label of labels) await menu.getByLabel(label, { exact: true }).check();
+  await frame.locator(`#${id}`).click();
+  await expect(menu).toBeHidden();
+}
+
 export async function drag(page, locator, dx) {
   const box = await locator.boundingBox();
   const x = box.x + box.width / 2;

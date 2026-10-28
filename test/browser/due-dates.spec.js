@@ -1,4 +1,4 @@
-import { MOBILE, WEBSITE, drag, expect, openGantt, row, shift, test, today } from './harness.js';
+import { MOBILE, WEBSITE, drag, expect, filterBy, ganttTab, openGantt, row, shift, test, today } from './harness.js';
 
 const DAY_PX = 36;
 const stored = (worker, key) => worker.evaluate(async key => (await chrome.storage.local.get(key))[key], key);
@@ -143,17 +143,112 @@ test('does not overwrite a due date someone else changed', async ({ page, linear
 test('filters by search, assignee, and status', async ({ page }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
-  await frame.locator('#assignee').selectOption({ label: 'Sam Ortiz' });
+  await filterBy(frame, 'assignee', 'Sam Ortiz');
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-4', 'MOB-2']);
-  await frame.locator('#status').selectOption('In Progress');
+  await filterBy(frame, 'status', 'In Progress');
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-4']);
-  await frame.locator('#assignee').selectOption({ label: 'Unassigned' });
+  await filterBy(frame, 'assignee', 'Unassigned');
   await expect(frame.locator('.empty')).toHaveText('No issues match these filters.');
-  await frame.locator('#assignee').selectOption('');
-  await frame.locator('#status').selectOption('');
+  await filterBy(frame, 'assignee');
+  await filterBy(frame, 'status');
   await frame.locator('#search').fill('mob-6');
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-6']);
   await expect(frame.locator('#count')).toHaveText('1 of 6 issues');
+});
+
+test('shows issues that match any of the picked assignees or statuses', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  await filterBy(frame, 'assignee', 'Maya Chen', 'Sam Ortiz');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-2', 'MOB-5']);
+  await expect(frame.locator('#count')).toHaveText('5 of 6 issues');
+
+  await filterBy(frame, 'assignee');
+  await filterBy(frame, 'status', 'Todo', 'Done');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-6', 'MOB-2', 'MOB-3', 'MOB-5']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled2', 'Unscheduled1', 'Completed1']);
+
+  await filterBy(frame, 'assignee', 'Sam Ortiz', 'Unassigned');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-2', 'MOB-3']);
+  await expect(frame.locator('#count')).toHaveText('2 of 6 issues');
+});
+
+test('combines picked assignees with the search', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  await frame.locator('#search').fill('in');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-3']);
+  await filterBy(frame, 'assignee', 'Maya Chen', 'Sam Ortiz');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6']);
+  await expect(frame.locator('#count')).toHaveText('2 of 6 issues');
+});
+
+test('names the picked filters on their buttons and keeps the menu open while picking', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  const menu = frame.locator('#assignee-menu');
+  await expect(frame.locator('#assignee')).toHaveText('All assignees');
+  await expect(frame.locator('#status')).toHaveText('All statuses');
+
+  await frame.locator('#assignee').click();
+  await expect(menu.getByRole('checkbox')).toHaveCount(3);
+  await expect(menu.locator('label')).toHaveText(['Maya Chen', 'Sam Ortiz', 'Unassigned']);
+  await menu.getByLabel('Sam Ortiz').check();
+  await expect(frame.locator('#assignee')).toHaveText('Sam Ortiz');
+  await menu.getByLabel('Unassigned').check();
+  await expect(frame.locator('#assignee')).toHaveText('2 assignees');
+  await menu.getByLabel('Maya Chen').check();
+  await expect(frame.locator('#assignee')).toHaveText('3 assignees');
+  await expect(menu).toBeVisible();
+  await menu.getByLabel('Unassigned').uncheck();
+  await expect(frame.locator('#assignee')).toHaveText('2 assignees');
+  await menu.getByRole('button', { name: 'Clear' }).click();
+  await expect(frame.locator('#assignee')).toHaveText('All assignees');
+  await expect(menu.getByRole('checkbox', { checked: true })).toHaveCount(0);
+  await expect(frame.locator('.row.issue')).toHaveCount(6);
+
+  await frame.locator('#count').click();
+  await expect(menu).toBeHidden();
+  await frame.locator('#assignee').click();
+  await expect(menu).toBeVisible();
+  await page.locator('aside').click({ position: { x: 10, y: 400 } });
+  await expect(menu).toBeHidden();
+  await frame.locator('#status').click();
+  await expect(frame.locator('#status-menu label')).toHaveText(['Todo', 'In Progress', 'Done']);
+  await frame.locator('#status-menu').getByLabel('Done').check();
+  await expect(frame.locator('#status')).toHaveText('Done');
+  await frame.locator('#status-menu').getByLabel('Todo').check();
+  await expect(frame.locator('#status')).toHaveText('2 statuses');
+});
+
+test('the filter menus work from the keyboard and Escape closes them without leaving the chart', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  const button = frame.locator('#assignee');
+  const menu = frame.locator('#assignee-menu');
+  await frame.locator('#search').focus();
+  await page.keyboard.press('Tab');
+  await expect(button).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Tab');
+  await expect(menu.getByLabel('Maya Chen')).toBeFocused();
+  await page.keyboard.press('Space');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Space');
+  await expect(button).toHaveText('2 assignees');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-2', 'MOB-5']);
+
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(button).toBeFocused();
+  await page.keyboard.press('Space');
+  await expect(menu).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(menu).toBeHidden();
+  await expect(button).toBeFocused();
+  await expect(ganttTab(page)).not.toBeFocused();
+  await expect(button).toHaveText('2 assignees');
 });
 
 test('groups completed issues under Completed whether or not they have a due date', async ({ page, linear }) => {
@@ -214,7 +309,7 @@ test('keeps groups hidden across scale changes, filters, and refresh', async ({ 
   await expect(hidden).toHaveText(['Milestones2', 'Completed1']);
 
   await frame.locator('[data-scale="month"]').click();
-  await frame.locator('#assignee').selectOption({ label: 'Maya Chen' });
+  await filterBy(frame, 'assignee', 'Maya Chen');
   await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled2', 'Completed1']);
   await expect(hidden).toHaveText(['Milestones2', 'Completed1']);
   await expect(frame.locator('.row.milestone-row')).toHaveCount(0);
@@ -253,38 +348,58 @@ test('remembers search and filters for each project', async ({ page, worker }) =
   await page.goto(`https://linear.app${MOBILE}`);
   let frame = await openGantt(page);
   await frame.locator('#search').fill('ship');
-  await frame.locator('#assignee').selectOption({ label: 'Sam Ortiz' });
-  await frame.locator('#status').selectOption('In Progress');
-  await expect.poll(() => stored(worker, 'filters:project-mobile')).toEqual({ search: 'ship', assignee: 'user-sam', status: 'In Progress' });
+  await filterBy(frame, 'assignee', 'Maya Chen', 'Sam Ortiz');
+  await filterBy(frame, 'status', 'Todo', 'In Progress');
+  await expect.poll(() => stored(worker, 'filters:project-mobile')).toEqual({ search: 'ship', assignee: ['user-maya', 'user-sam'], status: ['Todo', 'In Progress'] });
 
   await page.reload();
   frame = await openGantt(page);
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-4']);
   await expect(frame.locator('#search')).toHaveValue('ship');
-  await expect(frame.locator('#assignee')).toHaveValue('user-sam');
-  await expect(frame.locator('#status')).toHaveValue('In Progress');
+  await expect(frame.locator('#assignee')).toHaveText('2 assignees');
+  await expect(frame.locator('#assignee-menu label:has(:checked)')).toHaveText(['Maya Chen', 'Sam Ortiz']);
+  await expect(frame.locator('#status')).toHaveText('2 statuses');
+  await expect(frame.locator('#status-menu label:has(:checked)')).toHaveText(['Todo', 'In Progress']);
+  await frame.locator('#search').fill('');
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-2']);
 
   await page.goto(`https://linear.app${WEBSITE}`);
   frame = await openGantt(page);
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['WEB-1']);
   await expect(frame.locator('#search')).toHaveValue('');
-  await expect(frame.locator('#assignee')).toHaveValue('');
-  await expect(frame.locator('#status')).toHaveValue('');
+  await expect(frame.locator('#assignee')).toHaveText('All assignees');
+  await expect(frame.locator('#status')).toHaveText('All statuses');
 });
 
-test('falls back to all when a saved filter option no longer exists', async ({ page, linear, worker }) => {
+test('reads filters saved as single values by earlier versions', async ({ page, worker }) => {
+  await worker.evaluate(() => chrome.storage.local.set({ 'filters:project-mobile': { search: '', assignee: 'user-sam', status: '' } }));
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-4', 'MOB-2']);
+  await expect(frame.locator('#assignee')).toHaveText('Sam Ortiz');
+  await expect(frame.locator('#status')).toHaveText('All statuses');
+});
+
+test('drops saved filter options that no longer exist, falling back to all', async ({ page, linear, worker }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   let frame = await openGantt(page);
-  await frame.locator('#assignee').selectOption({ label: 'Sam Ortiz' });
-  await frame.locator('#status').selectOption('In Progress');
-  await expect.poll(() => stored(worker, 'filters:project-mobile')).toEqual({ search: '', assignee: 'user-sam', status: 'In Progress' });
+  await filterBy(frame, 'assignee', 'Maya Chen', 'Sam Ortiz');
+  await filterBy(frame, 'status', 'In Progress');
+  await expect.poll(() => stored(worker, 'filters:project-mobile')).toEqual({ search: '', assignee: ['user-maya', 'user-sam'], status: ['In Progress'] });
 
   for (const issue of linear.issues) if (issue.assignee?.id === 'user-sam') issue.assignee = null;
   await page.reload();
   frame = await openGantt(page);
+  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1']);
+  await expect(frame.locator('#assignee')).toHaveText('Maya Chen');
+  await expect(frame.locator('#status')).toHaveText('In Progress');
+
+  for (const issue of linear.issues) if (issue.assignee?.id === 'user-maya') issue.assignee = null;
+  await page.reload();
+  frame = await openGantt(page);
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-4']);
-  await expect(frame.locator('#assignee')).toHaveValue('');
-  await expect(frame.locator('#status')).toHaveValue('In Progress');
+  await expect(frame.locator('#assignee')).toHaveText('All assignees');
+  await expect(frame.locator('#status')).toHaveText('In Progress');
 });
 
 test('switches scales and returns to today', async ({ page }) => {
