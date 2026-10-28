@@ -111,7 +111,7 @@ a:hover { text-decoration: underline; }
   font-size: 11.5px; color: inherit; text-overflow: ellipsis; cursor: pointer;
 }
 .choice:hover:not(:disabled), .choice:focus { border-color: var(--border); background: var(--surface); }
-.status-choice { flex: none; margin-left: auto; max-width: 120px; color: var(--muted); }
+.status-choice { flex: none; margin-left: auto; max-width: 130px; appearance: auto; border-color: var(--border); background: var(--surface); }
 .meta .who { max-width: 120px; margin: 0 -5px; }
 .meta .start { flex: none; }
 .meta .start.none { opacity: .7; }
