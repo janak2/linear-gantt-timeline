@@ -24,6 +24,7 @@ function issue(n, prefix, projectId, fields) {
     team: { id: prefix === 'WEB' ? 'team-web' : 'team-mob' },
     project: { id: projectId },
     parent: null,
+    labels: { nodes: [] },
     ...fields
   };
 }
@@ -34,6 +35,13 @@ const maya = { id: 'user-maya', name: 'Maya Chen' };
 const sam = { id: 'user-sam', name: 'Sam Ortiz' };
 const priya = { id: 'user-priya', name: 'Priya Nair' };
 const leo = { id: 'user-leo', name: 'Leo Brandt' };
+const feature = { id: 'label-feature', name: 'Feature', color: '#bb87fc' };
+const bug = { id: 'label-bug', name: 'Bug', color: '#eb5757' };
+const ios = { id: 'label-ios', name: 'iOS', color: '#4ea7fc' };
+const android = { id: 'label-android', name: 'Android', color: '#4cb782' };
+const sync = { id: 'label-sync', name: 'Sync', color: '#f2994a' };
+const design = { id: 'label-design', name: 'Design', color: '#f2c94c' };
+const labels = (...nodes) => ({ nodes });
 
 // A stateful stand-in for Linear's GraphQL API and OAuth endpoints.
 export class FakeLinear {
@@ -52,10 +60,10 @@ export class FakeLinear {
       { id: 'project-website', name: 'Website', slugId: 'a1b2c3d4e5f6', url: 'https://linear.app/acme/project/website-a1b2c3d4e5f6' }
     ];
     this.issues = [
-      issue(1, 'MOB', 'project-mobile', { title: 'Build sync engine', startedAt: `${shift(t, -5)}T09:30:00.000Z`, dueDate: shift(t, 5), state: inProgress, assignee: maya }),
-      issue(2, 'MOB', 'project-mobile', { title: 'Design review', dueDate: shift(t, 10), assignee: sam }),
+      issue(1, 'MOB', 'project-mobile', { title: 'Build sync engine', startedAt: `${shift(t, -5)}T09:30:00.000Z`, dueDate: shift(t, 5), state: inProgress, assignee: maya, labels: labels(feature, sync, ios, android) }),
+      issue(2, 'MOB', 'project-mobile', { title: 'Design review', dueDate: shift(t, 10), assignee: sam, labels: labels(design) }),
       issue(3, 'MOB', 'project-mobile', { title: 'Write onboarding docs' }),
-      issue(4, 'MOB', 'project-mobile', { title: 'Ship beta', startedAt: `${shift(t, -2)}T12:00:00.000Z`, dueDate: shift(t, 12), state: inProgress, assignee: sam }),
+      issue(4, 'MOB', 'project-mobile', { title: 'Ship beta', startedAt: `${shift(t, -2)}T12:00:00.000Z`, dueDate: shift(t, 12), state: inProgress, assignee: sam, labels: labels(bug, ios) }),
       issue(5, 'MOB', 'project-mobile', { title: 'Set up CI', startedAt: `${shift(t, -20)}T08:00:00.000Z`, dueDate: shift(t, -10), completedAt: `${shift(t, -11)}T17:00:00.000Z`, state: done, assignee: maya }),
       issue(6, 'MOB', 'project-mobile', { title: 'Fix login crash', dueDate: shift(t, -3), assignee: maya }),
       issue(1, 'WEB', 'project-website', { title: 'Landing page', dueDate: shift(t, 3), assignee: sam })

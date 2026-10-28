@@ -34,6 +34,7 @@ export function makeIssue(n, overrides = {}) {
     state: { id: 'todo', name: 'Todo', type: 'unstarted', color: '#e2e2e2' },
     assignee: null,
     project: { id: 'project-1' },
+    labels: { nodes: [] },
     ...overrides
   };
 }

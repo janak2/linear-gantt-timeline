@@ -17,7 +17,10 @@ const ISSUE_FIELDS = `id identifier title url dueDate startedAt completedAt canc
   assignee { id name }
   team { id }
   project { id }
-  parent { id identifier title url }`;
+  parent { id identifier title url }
+  labels(first: 10) { nodes { id name color } }`;
+
+const toIssue = ({ labels, ...issue }) => ({ ...issue, labels: labels?.nodes ?? [] });
 
 export const VIEWER_QUERY = `query GanttViewer {
   viewer { id name }
@@ -144,7 +147,7 @@ export async function fetchProjectIssues(token, projectId, fetcher = fetch) {
     // Issues the user cannot access come back as null entries with errors.
     const visible = nodes.filter(issue => issue?.project?.id === projectId);
     partial ||= errors.length > 0 || visible.length !== nodes.length;
-    issues.push(...visible);
+    issues.push(...visible.map(toIssue));
     const { hasNextPage, endCursor } = connection.pageInfo ?? {};
     if (!hasNextPage) return { issues, partial, truncated: false };
     if (!endCursor || endCursor === after) throw new LinearError('graphql', 'Linear returned an invalid page of issues.');
@@ -187,7 +190,7 @@ async function fetchIssue(token, id, fetcher) {
     throw error.code === 'graphql' ? missing : error;
   }
   if (!result.data.issue || result.errors.length) throw missing;
-  return result.data.issue;
+  return toIssue(result.data.issue);
 }
 
 const EDITS = {
@@ -209,7 +212,7 @@ async function updateField(token, { projectId, issueId, expected }, field, value
   if (errors.length || !payload?.success || !payload.issue) {
     throw new LinearError('graphql', errors[0]?.extensions?.userPresentableMessage || `Linear did not save the ${edit.name}.`);
   }
-  return { conflict: false, issue: payload.issue };
+  return { conflict: false, issue: toIssue(payload.issue) };
 }
 
 export function updateDueDate(token, { dueDate, ...request }, fetcher = fetch) {

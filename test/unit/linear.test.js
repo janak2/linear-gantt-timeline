@@ -6,6 +6,7 @@ import { graphqlServer, json, makeIssue } from './helpers.js';
 const route = { workspace: 'acme', slug: 'mobile-app-3f2a1b9c8d7e', key: '3f2a1b9c8d7e' };
 const organization = { id: 'org-1', name: 'Acme', urlKey: 'acme' };
 const project = { id: 'project-1', name: 'Mobile app', slugId: '3f2a1b9c8d7e', url: 'https://linear.app/acme/project/mobile-app-3f2a1b9c8d7e' };
+const shown = issue => ({ ...issue, labels: issue.labels.nodes });
 
 function pages(issues, size = PAGE_SIZE) {
   return ({ after }) => {
@@ -103,7 +104,7 @@ test('treats a parent the user cannot access as no parent', async () => {
       errors: [parentError(['project', 'issues', 'nodes', 0, 'parent'])]
     })
   });
-  assert.deepEqual(await fetchProjectIssues('t', 'project-1', fetcher), { issues: [makeIssue(1, { parent: null })], partial: false, truncated: false });
+  assert.deepEqual(await fetchProjectIssues('t', 'project-1', fetcher), { issues: [shown(makeIssue(1, { parent: null }))], partial: false, truncated: false });
 
   const save = graphqlServer({
     GanttIssue: () => json({ data: { issue: makeIssue(1, { parent: null }) }, errors: [parentError(['issue', 'parent'])] }),
@@ -129,7 +130,7 @@ function issueServer(current, mutation = variables => json({ data: { issueUpdate
 test('saves only the due date', async () => {
   const { fetcher, calls } = issueServer(makeIssue(1, { dueDate: '2026-10-27' }));
   const result = await updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: '2026-10-27', dueDate: '2026-11-03' }, fetcher);
-  assert.deepEqual(result, { conflict: false, issue: makeIssue(1, { dueDate: '2026-11-03' }) });
+  assert.deepEqual(result, { conflict: false, issue: shown(makeIssue(1, { dueDate: '2026-11-03' })) });
   const mutation = calls.find(call => call.operation === 'GanttUpdateDueDate');
   assert.deepEqual(mutation.variables, { id: 'issue-1', dueDate: '2026-11-03' });
   assert.match(mutation.query, /input: \{ dueDate: \$dueDate \}/);
@@ -165,6 +166,24 @@ test('reports failed and forbidden writes', async () => {
   await assert.rejects(updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, unsaved.fetcher), { code: 'graphql' });
   const missing = graphqlServer({ GanttIssue: () => json({ data: null, errors: [{ message: 'Entity not found' }] }) });
   await assert.rejects(updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, missing.fetcher), { code: 'not_found' });
+});
+
+test("reads each issue's labels as a list, also after a save or a conflict", async () => {
+  const bug = { id: 'label-bug', name: 'Bug', color: '#eb5757' };
+  const ios = { id: 'label-ios', name: 'iOS', color: '#4ea7fc' };
+  const labelled = makeIssue(1, { labels: { nodes: [bug, ios] } });
+  const load = graphqlServer({ GanttProjectIssues: pages([labelled, makeIssue(2)]) });
+  const { issues } = await fetchProjectIssues('t', 'project-1', load.fetcher);
+  assert.deepEqual(issues.map(issue => issue.labels), [[bug, ios], []]);
+  assert.match(load.calls[0].query, /labels\(first: 10\) \{ nodes \{ id name color \} \}/);
+
+  const save = issueServer(labelled);
+  const saved = await updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, save.fetcher);
+  assert.deepEqual(saved.issue.labels, [bug, ios]);
+  assert.ok(save.calls.every(call => call.query.includes('labels(first: 10)')));
+  const conflict = issueServer(makeIssue(1, { dueDate: '2026-11-10', labels: { nodes: [bug] } }));
+  const result = await updateDueDate('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, dueDate: '2026-11-03' }, conflict.fetcher);
+  assert.deepEqual(result, { conflict: true, issue: shown(makeIssue(1, { dueDate: '2026-11-10', labels: { nodes: [bug] } })) });
 });
 
 const todo = { id: 'todo', name: 'Todo', type: 'unstarted', color: '#e2e2e2' };
@@ -210,7 +229,7 @@ function editServer(current, operation, changes = {}) {
 test('saves only the status', async () => {
   const { fetcher, calls } = editServer(makeIssue(1, { state: todo }), 'GanttUpdateStatus', { state: done });
   const result = await updateStatus('t', { projectId: 'project-1', issueId: 'issue-1', expected: 'todo', stateId: 'done' }, fetcher);
-  assert.deepEqual(result, { conflict: false, issue: makeIssue(1, { state: done }) });
+  assert.deepEqual(result, { conflict: false, issue: shown(makeIssue(1, { state: done })) });
   const mutation = calls.find(call => call.operation === 'GanttUpdateStatus');
   assert.deepEqual(mutation.variables, { id: 'issue-1', stateId: 'done' });
   assert.match(mutation.query, /input: \{ stateId: \$stateId \}/);
@@ -219,7 +238,7 @@ test('saves only the status', async () => {
 test('assigns and unassigns issues', async () => {
   const assign = editServer(makeIssue(1), 'GanttUpdateAssignee', { assignee: maya });
   const assigned = await updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-maya' }, assign.fetcher);
-  assert.deepEqual(assigned, { conflict: false, issue: makeIssue(1, { assignee: maya }) });
+  assert.deepEqual(assigned, { conflict: false, issue: shown(makeIssue(1, { assignee: maya })) });
   assert.deepEqual(assign.calls.at(-1).variables, { id: 'issue-1', assigneeId: 'user-maya' });
   assert.match(assign.calls.at(-1).query, /input: \{ assigneeId: \$assigneeId \}/);
 
@@ -232,7 +251,7 @@ test('assigns and unassigns issues', async () => {
 test('does not overwrite a status or assignee someone else changed', async () => {
   const status = editServer(makeIssue(1, { state: done }), 'GanttUpdateStatus');
   const result = await updateStatus('t', { projectId: 'project-1', issueId: 'issue-1', expected: 'todo', stateId: 'canceled' }, status.fetcher);
-  assert.deepEqual(result, { conflict: true, issue: makeIssue(1, { state: done }) });
+  assert.deepEqual(result, { conflict: true, issue: shown(makeIssue(1, { state: done })) });
   const assignee = editServer(makeIssue(1, { assignee: maya }), 'GanttUpdateAssignee');
   assert.equal((await updateAssignee('t', { projectId: 'project-1', issueId: 'issue-1', expected: null, assigneeId: 'user-sam' }, assignee.fetcher)).conflict, true);
   assert.ok([...status.calls, ...assignee.calls].every(call => call.operation === 'GanttIssue'));

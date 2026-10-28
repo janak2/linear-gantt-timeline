@@ -3,6 +3,7 @@ import { SCALES, chartRange, chartWidth, dayToX, issueSchedule, ticks, xToDay } 
 
 const LINEAR_ORIGIN = 'https://linear.app';
 const LABEL_WIDTH = 400;
+const SHOWN_LABELS = 2;
 const STATE_ORDER = ['triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'];
 const SAVED_MS = 2500;
 const INPUT_DELAY_MS = 700;
@@ -238,6 +239,8 @@ function safeURL(url) {
   }
 }
 
+const safeColor = color => /^#[0-9a-f]{6}$/i.test(color) ? color : '#8b8e9b';
+
 const pxPerDay = () => SCALES[state.scale].pxPerDay;
 const trackWidth = () => chart.clientWidth - LABEL_WIDTH;
 
@@ -381,10 +384,17 @@ function choiceSelect(attributes, current, choices, pick, none = null) {
   return select;
 }
 
+function labelChips(labels) {
+  const rest = labels.slice(SHOWN_LABELS);
+  return element('span', { className: 'chips' },
+    ...labels.slice(0, SHOWN_LABELS).map(label => element('span', { className: 'chip', title: label.name, style: { '--label': safeColor(label.color) } }, label.name)),
+    ...(rest.length ? [element('span', { className: 'chip more', title: rest.map(label => label.name).join(', ') }, `+${rest.length}`)] : []));
+}
+
 function issueRow({ issue, display, schedule }, today, warning = false, depth = 0) {
   const saving = state.saves.get(issue.id);
   const pending = saving?.status === 'pending';
-  const color = /^#[0-9a-f]{6}$/i.test(display.state.color) ? display.state.color : '#8b8e9b';
+  const color = safeColor(display.state.color);
   const done = display.state.type === 'completed' || display.state.type === 'canceled';
   const team = state.teams.get(issue.team?.id);
   const title = element('a', { className: 'title', target: '_top', href: safeURL(issue.url), 'data-focus': `${issue.id}:link` }, issue.title);
@@ -429,7 +439,8 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
         element('span', { className: 'dot', 'data-type': display.state.type }),
         status),
       element('span', { className: 'identifier' }, issue.identifier),
-      title),
+      title,
+      ...(issue.labels.length ? [labelChips(issue.labels)] : [])),
     element('div', { className: 'line meta' },
       assignee,
       '·',

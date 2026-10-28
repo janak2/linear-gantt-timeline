@@ -8,7 +8,7 @@ Gantt View for Linear is a Chrome extension that adds a Gantt chart to Linear pr
 
 - **Your Linear account summary:** your name, user ID, and workspace name, ID, and URL key. Used to show which account is connected and to make sure the chart only loads projects from that workspace.
 - **Linear sign-in tokens:** the OAuth access token and refresh token Linear issues when you click **Connect Linear**. Used to call Linear's API on your behalf.
-- **Issue data for the project you open:** issue identifiers, titles, links, workflow states, assignee names, actual start dates, completion dates, and due dates, each issue's team ID and parent issue identifier, title, and link, plus the project's milestone names and target dates. Used to draw the chart.
+- **Issue data for the project you open:** issue identifiers, titles, links, workflow states, assignee names, label names and colors, actual start dates, completion dates, and due dates, each issue's team ID and parent issue identifier, title, and link, plus the project's milestone names and target dates. Used to draw the chart.
 - **Teams of those issues:** for each team with issues in the project, its workflow states (names, types, and colors) and the names and user IDs of its active members. Used to list the statuses and assignees you can pick for an issue.
 
 ## Where the data is kept

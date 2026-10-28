@@ -16,6 +16,7 @@ Gantt View for Linear adds a Gantt tab next to Overview and Issues in every Line
 
 - Each issue is a bar from the day work actually started to its due date.
 - Issues that have not started show a marker on their due date.
+- Each issue's labels are shown next to its title.
 - Project milestones are shown at their target dates.
 - Issues in progress without a due date are flagged at the top. Other issues without a due date are listed under Unscheduled, and finished issues under Completed.
 - Change a due date by dragging the end of a bar or the marker, by picking a date, or by clearing it. Change an issue's status or assignee from its row. Changes are saved to Linear right away.
@@ -55,7 +56,7 @@ Connect with your Linear account. The extension talks only to Linear and has no 
 
 - Personally identifiable information: yes (the connected user's name and the names of assignees and team members).
 - Authentication information: yes (Linear OAuth tokens).
-- Website content: yes (Linear issue titles, states, and dates, and milestone names and target dates, for the open project).
+- Website content: yes (Linear issue titles, states, labels, and dates, and milestone names and target dates, for the open project).
 - Health, financial, personal communications, location, web history, user activity: no.
 
 Certifications:
