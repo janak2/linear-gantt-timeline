@@ -28,6 +28,16 @@ test('changes the status and moves the issue to Completed', async ({ page, linea
   await expect(row(frame, 'MOB-2').locator('.dot')).toHaveAttribute('data-type', 'completed');
 });
 
+test('clicking the status icon opens the status list', async ({ page }) => {
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await openGantt(page);
+  const icon = await row(frame, 'MOB-2').locator('.dot').boundingBox();
+  await page.mouse.click(icon.x + icon.width / 2, icon.y + icon.height / 2);
+  await expect(status(frame, 'MOB-2')).toBeFocused();
+  await expect(status(frame, 'MOB-2').locator('option')).toHaveText(['Backlog', 'Todo', 'In Progress', 'In Review', 'Done', 'Canceled']);
+  await expect(status(frame, 'MOB-2')).toHaveAttribute('title', 'Todo');
+});
+
 test("offers the statuses and members of each issue's own team", async ({ page, linear }) => {
   Object.assign(linear.issue('MOB-6'), { team: { id: 'team-web' }, state: { id: 'web-todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa' } });
   await page.goto(`https://linear.app${MOBILE}`);

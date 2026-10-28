@@ -111,7 +111,9 @@ a:hover { text-decoration: underline; }
   font-size: 11.5px; color: inherit; text-overflow: ellipsis; cursor: pointer;
 }
 .choice:hover:not(:disabled), .choice:focus { border-color: var(--border); background: var(--surface); }
-.status-choice { flex: none; margin-left: auto; max-width: 130px; appearance: auto; border-color: var(--border); background: var(--surface); }
+.status-icon { position: relative; flex: none; display: flex; }
+.status-choice { position: absolute; top: -4px; left: -4px; width: 17px; height: 17px; padding: 0; border: 0; opacity: 0; }
+.status-icon:has(:focus-visible) .dot { outline: 2px solid var(--accent); outline-offset: 2px; }
 .meta .who { max-width: 120px; margin: 0 -5px; }
 .meta .start { flex: none; }
 .meta .start.none { opacity: .7; }

@@ -379,6 +379,7 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
   const title = element('a', { className: 'title', target: '_top', href: safeURL(issue.url), 'data-focus': `${issue.id}:link` }, issue.title);
   const status = choiceSelect({
     className: 'choice status-choice',
+    title: display.state.name,
     'aria-label': `Status for ${issue.identifier}`,
     'data-focus': `${issue.id}:status`,
     disabled: pending
@@ -413,10 +414,11 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
   const started = schedule.started !== null ? `Started ${formatDay(schedule.started)}` : 'Not started';
   const label = element('div', { className: 'label' },
     element('div', { className: 'line' },
-      element('span', { className: 'dot', 'data-type': display.state.type, title: display.state.name }),
+      element('span', { className: 'status-icon' },
+        element('span', { className: 'dot', 'data-type': display.state.type }),
+        status),
       element('span', { className: 'identifier' }, issue.identifier),
-      title,
-      status),
+      title),
     element('div', { className: 'line meta' },
       assignee,
       '·',
