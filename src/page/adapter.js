@@ -7,13 +7,12 @@ const EXTENSION_ORIGIN = new URL(PANEL_URL).origin;
 const STYLE_KEYS = ['color', 'background-color', 'box-shadow', 'border-color', 'font-weight', 'opacity'];
 const HEADER_MAX_HEIGHT = 120;
 const Z_INDEX = 30;
-const OPEN_KEY = 'linear-gantt:open';
+const OPEN_KEY = 'linear-gantt:open'; // Set by gantt-url.js to the project whose /gantt address was opened.
 
 let view = null; // State for the project page currently shown.
 let timer = null;
 let observer = null;
 let themeObserver = null;
-let restorePath = null;
 
 export function start() {
   // A reloaded extension leaves its old elements behind; the old copy tears itself down.
@@ -24,13 +23,8 @@ export function start() {
   for (const root of [document.documentElement, document.body]) themeObserver.observe(root, { attributes: true });
   addEventListener('resize', schedule);
   addEventListener('message', onFrameMessage);
-  addEventListener('pagehide', onPageHide);
   document.addEventListener('click', onDocumentClick, true);
   globalThis.navigation?.addEventListener('currententrychange', schedule);
-  if (sessionStorage.getItem(OPEN_KEY) === location.pathname) {
-    sessionStorage.removeItem(OPEN_KEY);
-    if (['back_forward', 'reload'].includes(performance.getEntriesByType('navigation')[0]?.type)) restorePath = location.pathname;
-  }
   update();
 }
 
@@ -40,7 +34,6 @@ function teardown() {
   clearTimeout(timer);
   removeEventListener('resize', schedule);
   removeEventListener('message', onFrameMessage);
-  removeEventListener('pagehide', onPageHide);
   document.removeEventListener('click', onDocumentClick, true);
   globalThis.navigation?.removeEventListener('currententrychange', schedule);
   removeView();
@@ -55,10 +48,13 @@ function update() {
   if (!chrome.runtime?.id) return teardown();
   const route = parseProjectPath(location.pathname);
   const id = route && `${route.workspace}/${route.key}`;
+  const requested = parseProjectPath(sessionStorage.getItem(OPEN_KEY) ?? '');
+  const requestedId = requested && `${requested.workspace}/${requested.key}`;
+  if (requestedId && requestedId !== id) sessionStorage.removeItem(OPEN_KEY);
   if (view && view.id !== id) removeView();
   if (!route) return;
-  view ??= { id, route, path: location.pathname, nav: null, tab: null, host: null, frame: null, open: false, saved: null, theme: null };
-  if (view.path !== location.pathname) {
+  view ??= { id, route, path: location.pathname, linearURL: null, nav: null, tab: null, host: null, frame: null, open: false, saved: null, theme: null };
+  if (route.view !== 'gantt' && view.path !== location.pathname) {
     view.path = location.pathname;
     close();
   }
@@ -67,15 +63,24 @@ function update() {
     view.tab?.remove();
     view.tab = null;
     view.nav = null;
-    return close();
+    close();
+    return leaveGanttURL(route);
   }
   view.nav = nav;
   if (!view.tab?.isConnected || view.tab.previousElementSibling !== nav.items.at(-1)) insertTab(nav);
   if (!view.host) createPanel();
-  if (restorePath === location.pathname) open();
-  restorePath = null;
+  if (requestedId === id) {
+    sessionStorage.removeItem(OPEN_KEY);
+    open();
+  }
+  leaveGanttURL(route);
   syncTheme();
   position();
+}
+
+// The /gantt address stands for the open chart; once it closes without Linear navigating, put Linear's address back.
+function leaveGanttURL(route) {
+  if (!view.open && route.view === 'gantt' && view.linearURL) history.replaceState(history.state, '', view.linearURL);
 }
 
 function removeView() {
@@ -169,6 +174,10 @@ function insertTab(nav) {
 
 function open() {
   if (!view?.tab) return;
+  if (parseProjectPath(location.pathname)?.view !== 'gantt') {
+    view.linearURL = location.pathname + location.search + location.hash;
+    history.replaceState(history.state, '', `${location.pathname.replace(/^(\/[^/]+\/project\/[^/]+).*/, '$1/gantt')}${location.search}${location.hash}`);
+  }
   view.open = true;
   view.host.style.visibility = 'visible';
   position();
@@ -280,13 +289,10 @@ function syncTheme() {
 }
 
 function onDocumentClick(event) {
-  if (view?.open && view.nav?.container.contains(event.target) && !view.tab?.contains(event.target)) close();
-}
-
-// Issue links in the chart leave the page, so Back reloads it with the chart closed.
-function onPageHide() {
-  if (view?.open) sessionStorage.setItem(OPEN_KEY, location.pathname);
-  else if (sessionStorage.getItem(OPEN_KEY) === location.pathname) sessionStorage.removeItem(OPEN_KEY);
+  if (view?.open && view.nav?.container.contains(event.target) && !view.tab?.contains(event.target)) {
+    close();
+    schedule();
+  }
 }
 
 function onFrameMessage(event) {

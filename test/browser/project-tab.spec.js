@@ -1,5 +1,7 @@
 import { MOBILE, WEBSITE, expect, ganttTab, openGantt, panelFrames, panelHost, row, test } from './harness.js';
 
+const GANTT = MOBILE.replace(/overview$/, 'gantt');
+
 test.beforeEach(async ({ signIn }) => signIn());
 
 test('adds one Gantt tab beside the project tabs and shows the chart in the content area', async ({ page, linear }) => {
@@ -58,7 +60,7 @@ test('going back from an issue returns to the chart', async ({ page }) => {
   await row(frame, 'MOB-2').locator('a.title').click();
   await expect(page).toHaveURL('https://linear.app/acme/issue/MOB-2');
   await page.goBack();
-  await expect(page).toHaveURL(`https://linear.app${MOBILE}`);
+  await expect(page).toHaveURL(`https://linear.app${GANTT}`);
   await expect(panelHost(page)).toBeVisible();
   await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => panelFrames(page).length).toBe(1);
@@ -80,6 +82,7 @@ test('reloading the page reopens the chart', async ({ page }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   await openGantt(page);
   await page.reload();
+  await expect(page).toHaveURL(`https://linear.app${GANTT}`);
   await expect(panelHost(page)).toBeVisible();
   await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
   await expect.poll(() => panelFrames(page).length).toBe(1);

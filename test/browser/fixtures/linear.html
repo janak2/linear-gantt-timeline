@@ -33,16 +33,25 @@
     <main id="content"></main>
   </div>
   <script>
-    // A minimal stand-in for Linear's client-side routed project page.
+    // A minimal stand-in for Linear's client-side routed project page. Like a real router it keeps
+    // the current route and reads the address only when it navigates. With window.useNavigationAPI
+    // set it routes with the Navigation API instead of click and popstate handlers.
+    let path = location.pathname;
+    window.notFound = 0;
     function render() {
-      const match = /^\/([^/]+)\/project\/([^/]+)\/?([^/]*)/.exec(location.pathname);
+      const match = /^\/([^/]+)\/project\/([^/]+)\/?([^/]*)/.exec(path);
       header.replaceChildren();
       if (!match) {
-        header.textContent = location.pathname;
+        header.textContent = path;
         content.textContent = 'Not a project page';
         return;
       }
       const [, workspace, slug, view] = match;
+      if (!['', 'overview', 'issues', 'activity'].includes(view)) {
+        window.notFound++;
+        content.textContent = 'Not found';
+        return;
+      }
       const title = document.createElement('a');
       title.href = `/${workspace}/project/${slug}/overview`;
       title.textContent = slug;
@@ -69,14 +78,23 @@
       content.textContent = `${view || 'overview'} for ${slug} `;
       content.append(seeAll);
     }
-    document.addEventListener('click', event => {
-      const link = event.target.closest('a[href^="/"]');
-      if (!link || event.defaultPrevented) return;
-      event.preventDefault();
-      history.pushState(null, '', link.href);
-      render();
-    });
-    addEventListener('popstate', render);
+    if (window.useNavigationAPI) {
+      navigation.addEventListener('navigate', event => {
+        const url = new URL(event.destination.url);
+        if (!event.canIntercept || url.origin !== location.origin || !url.pathname.includes('/project/')) return;
+        event.intercept({ handler: () => { path = url.pathname; render(); } });
+      });
+    } else {
+      document.addEventListener('click', event => {
+        const link = event.target.closest('a[href^="/"]');
+        if (!link || event.defaultPrevented) return;
+        event.preventDefault();
+        history.pushState(null, '', link.href);
+        path = location.pathname;
+        render();
+      });
+      addEventListener('popstate', () => { path = location.pathname; render(); });
+    }
     window.rerender = render;
     window.setTheme = theme => { document.body.className = theme; };
     render();

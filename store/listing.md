@@ -23,6 +23,7 @@ Gantt View for Linear adds a Gantt tab next to Overview and Issues in every Line
 - If someone else changed an issue since the chart loaded, your edit is not saved over theirs.
 - Group issues by parent issue or by assignee.
 - Search, filter by assignee or status, switch between day, week, and month scales, and jump to today. The chart remembers your view.
+- Open a project's chart directly at its /gantt address.
 - Follows Linear's light and dark themes and works with the keyboard.
 
 Connect with your Linear account. The extension talks only to Linear and has no servers of its own.
@@ -48,7 +49,7 @@ Connect with your Linear account. The extension talks only to Linear and has no 
 - `identity`: Signs the user in to Linear with OAuth (`chrome.identity.launchWebAuthFlow`).
 - `storage`: Keeps the Linear sign-in tokens, the connected account's name and workspace, and the chart's view settings in extension storage.
 - Host permission `https://api.linear.app/*`: Reads the project's issues and milestones and the statuses and members of their teams, saves due-date, status, and assignee changes, and exchanges, refreshes, and revokes OAuth tokens through Linear's API.
-- Content script on `https://linear.app/*`: Adds the Gantt tab to Linear project pages and shows the chart in the project's content area.
+- Content script on `https://linear.app/*`: Adds the Gantt tab to Linear project pages, shows the chart in the project's content area, and opens the chart at a project's /gantt address.
 
 **Remote code:** No. All code is included in the package.
 

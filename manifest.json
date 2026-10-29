@@ -16,6 +16,10 @@
   "options_page": "options.html",
   "content_scripts": [{
     "matches": ["https://linear.app/*"],
+    "js": ["src/gantt-url.js"],
+    "run_at": "document_start"
+  }, {
+    "matches": ["https://linear.app/*"],
     "js": ["src/content.js"],
     "run_at": "document_idle"
   }],

@@ -19,6 +19,7 @@ Planned start dates are not editable: Linear's API has no planned-start field fo
 
 1. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select this folder.
 2. Open a project at `https://linear.app`, click **Gantt**, then **Connect Linear**.
+3. While the chart is open the address is `https://linear.app/<workspace>/project/<slug>/gantt`; open, reload, or bookmark it to go straight to the chart.
 
 Reload the extension and the Linear tab after editing code.
 
