@@ -1,0 +1,58 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      ITEM: publishers/${{ vars.CWS_PUBLISHER_ID || secrets.CWS_PUBLISHER_ID }}/items/khanbpeonkeikkpmjoepebanelhiamio
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the tag and settings
+        run: |
+          version=$(jq -r .version manifest.json)
+          if [ "$GITHUB_EVENT_NAME" = push ] && [ "${GITHUB_REF_NAME#v}" != "$version" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in manifest.json."
+            exit 1
+          fi
+          if [[ $ITEM == publishers//* ]]; then
+            echo "::error::Add the Chrome Web Store publisher ID as the repository variable CWS_PUBLISHER_ID."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:browser
+      - run: npm run package
+      - name: Get a Chrome Web Store access token
+        run: node scripts/store-token.mjs
+        env:
+          CWS_SERVICE_ACCOUNT_KEY: ${{ secrets.CWS_SERVICE_ACCOUNT_KEY }}
+      - name: Check the store item (dry run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "https://chromewebstore.googleapis.com/v2/$ITEM:fetchStatus"
+      - name: Upload and submit for review
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          call() { curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$@" | tee response.json; echo; }
+          call -X POST -T "dist/gantt-view-for-linear-${GITHUB_REF_NAME#v}.zip" "https://chromewebstore.googleapis.com/upload/v2/$ITEM:upload"
+          state=$(jq -r .uploadState response.json)
+          for _ in $(seq 30); do
+            [[ $state == IN_PROGRESS || $state == UPLOAD_IN_PROGRESS ]] || break
+            sleep 10
+            call "https://chromewebstore.googleapis.com/v2/$ITEM:fetchStatus"
+            state=$(jq -r .lastAsyncUploadState response.json)
+          done
+          [[ $state == SUCCEEDED ]] || { echo "::error::The upload ended in state $state."; exit 1; }
+          call -X POST -H 'Content-Type: application/json' -d '{}' "https://chromewebstore.googleapis.com/v2/$ITEM:publish"
