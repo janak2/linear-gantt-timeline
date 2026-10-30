@@ -11,7 +11,7 @@ jobs:
     env:
       ITEM: publishers/${{ vars.CWS_PUBLISHER_ID || secrets.CWS_PUBLISHER_ID }}/items/khanbpeonkeikkpmjoepebanelhiamio
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check the tag and settings
         run: |
           version=$(jq -r .version manifest.json)
@@ -23,7 +23,7 @@ jobs:
             echo "::error::Add the Chrome Web Store publisher ID as the repository variable CWS_PUBLISHER_ID."
             exit 1
           fi
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
