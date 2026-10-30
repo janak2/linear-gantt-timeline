@@ -9,7 +9,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     env:
-      ITEM: publishers/${{ vars.CWS_PUBLISHER_ID || secrets.CWS_PUBLISHER_ID }}/items/khanbpeonkeikkpmjoepebanelhiamio
+      ITEM: publishers/${{ secrets.CWS_PUBLISHER_ID }}/items/khanbpeonkeikkpmjoepebanelhiamio
     steps:
       - uses: actions/checkout@v7
       - name: Check the tag matches manifest.json
@@ -37,7 +37,7 @@ jobs:
       - name: Check the publisher ID is set
         run: |
           if [[ $ITEM == publishers//* ]]; then
-            echo "::error::Add the Chrome Web Store publisher ID as the repository variable CWS_PUBLISHER_ID."
+            echo "::error::Add the Chrome Web Store publisher ID as the repository secret CWS_PUBLISHER_ID."
             exit 1
           fi
       - name: Check the store item (dry run)
