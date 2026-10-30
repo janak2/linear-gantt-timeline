@@ -52,10 +52,13 @@ export const ganttTab = page => page.locator('[data-linear-gantt="tab"]');
 export const panelHost = page => page.locator('[data-linear-gantt="panel"]');
 export const panelFrames = page => page.frames().filter(frame => frame.url().includes('/panel.html'));
 
+// Controls used before the panel's first load finishes are reset by that load.
 export async function openGantt(page) {
   await ganttTab(page).click();
   await expect.poll(() => panelFrames(page).length).toBe(1);
-  return panelFrames(page)[0];
+  const frame = panelFrames(page)[0];
+  await expect(frame.locator('#chart:not([hidden]), #gate:not([hidden])')).toBeVisible();
+  return frame;
 }
 
 export const row = (frame, identifier) => frame.locator('.row.issue').filter({ has: frame.locator('.identifier', { hasText: new RegExp(`^${identifier}$`) }) });
