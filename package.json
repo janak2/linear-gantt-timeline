@@ -1,6 +1,6 @@
 {
   "name": "linear-gantt-timeline",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "description": "Gantt View for Linear: a Chrome extension that adds a Gantt tab to Linear projects.",
