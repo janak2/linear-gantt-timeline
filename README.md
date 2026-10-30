@@ -9,19 +9,18 @@ A Chrome extension that adds a **Gantt** tab to every Linear project. Bars run f
 
 Planned start dates are not editable: Linear's API has no planned-start field for issues.
 
+## Install from source
+
+1. Clone the repository: `git clone https://github.com/janak2/linear-gantt-timeline.git`
+2. Open `chrome://extensions`, turn on **Developer mode**, click **Load unpacked**, and select the cloned `linear-gantt-timeline` folder. No build step or `npm install` is needed.
+3. Open a project at `https://linear.app`, click **Gantt**, then **Connect Linear**. While the chart is open the address is `https://linear.app/<workspace>/project/<slug>/gantt`; open, reload, or bookmark it to go straight to the chart.
+4. To update, run `git pull` in the folder, click the reload button on the extension's card in `chrome://extensions`, then reload the Linear tab.
+
 ## Set up the Linear OAuth application
 
 1. In Linear, go to **Settings → API → OAuth applications** and create an application named **Gantt View** with public distribution.
 2. Add the development callback URL: `https://ejcenkoklniinapjjgllepiedoajnali.chromiumapp.org/linear`. This ID comes from the public `key` in `manifest.json`.
 3. Put the application's client ID in `src/config.js` (`LINEAR_CLIENT_ID`). The client ID is public; no secret is used.
-
-## Try it locally
-
-1. Open `chrome://extensions`, enable **Developer mode**, click **Load unpacked**, and select this folder.
-2. Open a project at `https://linear.app`, click **Gantt**, then **Connect Linear**.
-3. While the chart is open the address is `https://linear.app/<workspace>/project/<slug>/gantt`; open, reload, or bookmark it to go straight to the chart.
-
-Reload the extension and the Linear tab after editing code.
 
 ## How it works
 
@@ -42,6 +41,8 @@ npm run check          # manifest resources and script syntax
 npm test               # unit tests
 npm run test:browser   # Chromium tests against a stand-in Linear page and API
 ```
+
+Reload the extension and the Linear tab after editing code.
 
 `npm run icons` renders `icons/icon.svg`. `npm run screenshots` captures store images into `store/`.
 
