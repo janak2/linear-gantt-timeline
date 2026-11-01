@@ -44,6 +44,22 @@ jobs:
         if: github.event_name == 'workflow_dispatch'
         run: |
           curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "https://chromewebstore.googleapis.com/v2/$ITEM:fetchStatus"
+      - name: Cancel a submission still in review
+        if: github.event_name == 'push'
+        shell: bash
+        run: |
+          call() { curl -sS --fail-with-body -H "Authorization: Bearer $TOKEN" "$@" | tee response.json; echo; }
+          state() { jq -r '.submittedItemRevisionStatus.state // "NONE"' response.json; }
+          call "https://chromewebstore.googleapis.com/v2/$ITEM:fetchStatus"
+          if [[ $(state) == PENDING_REVIEW ]]; then
+            call -X POST -d '' "https://chromewebstore.googleapis.com/v2/$ITEM:cancelSubmission"
+            for _ in $(seq 12); do
+              sleep 5
+              call "https://chromewebstore.googleapis.com/v2/$ITEM:fetchStatus"
+              [[ $(state) == PENDING_REVIEW ]] || break
+            done
+            [[ $(state) != PENDING_REVIEW ]] || { echo "::error::The submission in review was not cancelled."; exit 1; }
+          fi
       - name: Upload and submit for review
         if: github.event_name == 'push'
         shell: bash

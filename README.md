@@ -49,7 +49,7 @@ Reload the extension and the Linear tab after editing code.
 ## Release
 
 1. Increase `version` in `manifest.json`, commit, and push a matching tag, for example `git tag v0.3.0 && git push origin main v0.3.0`.
-2. The **Release** workflow runs the checks and tests, packages `dist/gantt-view-for-linear-<version>.zip` with the development `key` removed, uploads it to the Chrome Web Store item `khanbpeonkeikkpmjoepebanelhiamio`, and submits it for review. Google's review still applies before users get it.
+2. The **Release** workflow runs the checks and tests, packages `dist/gantt-view-for-linear-<version>.zip` with the development `key` removed, cancels a submission still in review, uploads it to the Chrome Web Store item `khanbpeonkeikkpmjoepebanelhiamio`, and submits it for review. Google's review still applies before users get it.
 3. Run the **Release** workflow by hand from the Actions tab for a dry run: it runs the checks, packages, and confirms the store credentials and publisher ID, but uploads nothing.
 
 The workflow uses the repository secrets `CWS_SERVICE_ACCOUNT_KEY` (the service account's JSON key) and `CWS_PUBLISHER_ID`. The store build's callback URL `https://khanbpeonkeikkpmjoepebanelhiamio.chromiumapp.org/linear` must be in the Linear OAuth application's callback URLs; to give local builds the store ID, copy the item's public key into `manifest.json` `key`. Use `store/listing.md` for the listing, privacy fields, and reviewer instructions. The privacy policy is `docs/privacy.md`.
