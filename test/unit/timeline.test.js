@@ -14,8 +14,21 @@ test('shows a due-date marker for issues that have not started', () => {
   assert.deepEqual(issueSchedule({ startedAt: null, dueDate: '2026-10-30', createdAt: '2026-10-01T00:00:00Z' }), { kind: 'marker', started: null, due: day('2026-10-30') });
 });
 
-test('keeps the actual start when work started after the due date', () => {
-  assert.deepEqual(issueSchedule({ startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30' }), { kind: 'marker', started: day('2026-11-02'), due: day('2026-10-30') });
+test('runs a late issue from its actual start to today while it is not finished', () => {
+  const issue = { startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30', state: { type: 'started' } };
+  assert.deepEqual(issueSchedule(issue, day('2026-11-09')), { kind: 'late', started: day('2026-11-02'), due: day('2026-10-30'), end: day('2026-11-09') });
+});
+
+test('ends a finished late issue on the day it was completed or canceled', () => {
+  const late = { startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30', completedAt: '2026-11-05T15:00:00Z', canceledAt: '2026-11-06T15:00:00Z' };
+  const today = day('2026-11-09');
+  assert.equal(issueSchedule({ ...late, state: { type: 'completed' } }, today).end, day('2026-11-05'));
+  assert.equal(issueSchedule({ ...late, state: { type: 'canceled' } }, today).end, day('2026-11-06'));
+  assert.equal(issueSchedule({ ...late, completedAt: null, state: { type: 'completed' } }, today).end, day('2026-11-02'));
+});
+
+test('keeps a bar for issues that started on or before their due date, even when overdue', () => {
+  assert.deepEqual(issueSchedule({ startedAt: '2026-10-30T00:00:00Z', dueDate: '2026-10-30', state: { type: 'started' } }, day('2026-11-09')), { kind: 'bar', started: day('2026-10-30'), due: day('2026-10-30') });
 });
 
 test('puts issues without due dates in Unscheduled and never uses the creation date', () => {
@@ -35,6 +48,7 @@ test('the range covers today and every date, aligned to weeks or months', () => 
   assert.equal(dateFromDay(month.start).slice(8), '01');
   assert.equal(dateFromDay(month.end + 1).slice(8), '01');
   assert.deepEqual(chartRange([], today, 'day').start <= today, true);
+  assert.ok(chartRange([{ started: day('2026-10-20'), due: day('2026-10-10'), end: day('2026-12-20') }], today, 'week').end >= day('2026-12-20'));
 });
 
 test('ticks follow the scale', () => {

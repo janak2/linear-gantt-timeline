@@ -165,7 +165,11 @@ a:hover { text-decoration: underline; }
   position: absolute; top: 15px; width: 16px; height: 16px; margin-left: -8px; transform: rotate(45deg);
   background: var(--bg); border: 2px solid var(--state); border-radius: 3px; cursor: ew-resize; touch-action: none; z-index: 1;
 }
-.start-tick { position: absolute; top: 13px; height: 20px; width: 2px; background: var(--muted); border-radius: 1px; }
+.bar.late { border-color: var(--danger); }
+.bar.late, .legend-late {
+  background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--danger), transparent 62%) 0 5px, color-mix(in srgb, var(--danger), transparent 84%) 5px 10px);
+}
+.late-link { position: absolute; top: 22px; border-top: 2px dashed var(--danger); opacity: .7; }
 .milestone { position: absolute; top: 16px; width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; z-index: 1; }
 .pending .bar, .pending .marker { opacity: .55; }
 .dragging, .dragging * { cursor: ew-resize !important; user-select: none; }
@@ -175,4 +179,5 @@ a:hover { text-decoration: underline; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend-bar { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent), transparent 72%); }
 .legend-marker { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); border: 2px solid var(--accent); border-radius: 2px; }
+.legend-late { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--danger); }
 .legend-milestone { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; }

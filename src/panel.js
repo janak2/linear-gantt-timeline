@@ -328,7 +328,9 @@ function drawTrack(track, issue, schedule, pending) {
   const { range, scale } = state;
   const px = pxPerDay();
   const started = schedule.started !== null ? `Actual start: ${formatDay(schedule.started, { year: 'numeric' })}` : 'Not started';
-  const tooltip = `${issue.identifier} ${issue.title}\n${started}\nDue: ${formatDay(schedule.due, { year: 'numeric' })}`;
+  const lateDays = schedule.started - schedule.due;
+  const late = schedule.kind === 'late' ? `\nStarted ${lateDays} day${lateDays === 1 ? '' : 's'} after due date` : '';
+  const tooltip = `${issue.identifier} ${issue.title}\n${started}\nDue: ${formatDay(schedule.due, { year: 'numeric' })}${late}`;
   if (schedule.kind === 'bar') {
     const bar = element('div', {
       className: 'bar',
@@ -339,9 +341,15 @@ function drawTrack(track, issue, schedule, pending) {
     if (!pending) handle.addEventListener('pointerdown', event => startDrag(event, issue, schedule, bar, null));
     bar.append(handle);
     track.append(bar);
-  } else if (schedule.kind === 'marker') {
-    if (schedule.started !== null) {
-      track.append(element('span', { className: 'start-tick', title: started, style: { left: `${dayToX(schedule.started, range, scale) + px / 2}px` } }));
+  } else if (schedule.kind === 'marker' || schedule.kind === 'late') {
+    if (schedule.kind === 'late') {
+      track.append(
+        element('span', { className: 'late-link', style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px`, width: `${(lateDays - 0.5) * px}px` } }),
+        element('div', {
+          className: 'bar late',
+          title: tooltip,
+          style: { left: `${dayToX(schedule.started, range, scale)}px`, width: `${(schedule.end - schedule.started + 1) * px}px` }
+        }, element('span', { className: 'bar-text' }, issue.title)));
     }
     const marker = element('div', { className: 'marker', title: tooltip, style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px` } });
     if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, null, marker));
@@ -494,7 +502,7 @@ function render({ scrollTo = null } = {}) {
   const today = localDay(new Date());
   const milestones = state.milestones.map(milestone => ({ milestone, day: dayFromDate(milestone.targetDate) }));
   const range = chartRange([
-    ...state.issues.map(issue => issueSchedule(shown(issue))),
+    ...state.issues.map(issue => issueSchedule(shown(issue), today)),
     ...milestones.map(({ day }) => ({ started: null, due: day }))
   ], today, state.scale);
   state.range = range;
@@ -512,7 +520,7 @@ function render({ scrollTo = null } = {}) {
 
   const visible = visibleIssues().map(issue => {
     const display = shown(issue);
-    return { issue, display, schedule: issueSchedule(display) };
+    return { issue, display, schedule: issueSchedule(display, today) };
   });
   const open = visible.filter(item => item.issue.state.type !== 'completed');
   const done = visible.filter(item => item.issue.state.type === 'completed');

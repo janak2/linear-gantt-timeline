@@ -66,6 +66,36 @@ test('Escape cancels a drag', async ({ page, linear }) => {
   expect(linear.operations('GanttUpdateDueDate')).toHaveLength(0);
 });
 
+test('draws an issue that started after its due date as a late bar joined to its due-date marker', async ({ page, linear }) => {
+  Object.assign(linear.issue('MOB-6'), { startedAt: `${shift(today(), -1)}T09:00:00.000Z`, state: linear.issue('MOB-1').state });
+  await page.goto(`https://linear.app${MOBILE}`);
+  const frame = await dayScale(page);
+  const track = () => row(frame, 'MOB-6').locator('.track');
+  await expect(track().locator('.bar.late')).toHaveAttribute('title', /\nStarted 2 days after due date$/);
+  await expect(track().locator('.bar.late .handle')).toHaveCount(0);
+  await expect(frame.locator('.legend')).toContainText('Started after due date');
+  const [marker, link, bar, line] = await Promise.all(['.marker', '.late-link', '.bar.late'].map(selector => track().locator(selector).boundingBox())
+    .concat(frame.locator('.today-line').boundingBox()));
+  const due = marker.x + marker.width / 2;
+  expect(link.x).toBeCloseTo(due, 0);
+  expect(link.x + link.width).toBeCloseTo(bar.x, 0);
+  expect(bar.x - due).toBeCloseTo(1.5 * DAY_PX, 0);
+  expect(bar.width).toBeCloseTo(2 * DAY_PX, 0);
+  expect(line.x).toBeGreaterThan(bar.x + bar.width - DAY_PX);
+  expect(line.x).toBeLessThan(bar.x + bar.width);
+
+  await drag(page, track().locator('.marker'), -DAY_PX);
+  await expect(row(frame, 'MOB-6').locator('.save-state')).toHaveText('Saved');
+  expect(linear.issue('MOB-6').dueDate).toBe(shift(today(), -4));
+  await expect(track().locator('.bar.late')).toHaveAttribute('title', /\nStarted 3 days after due date$/);
+
+  await drag(page, track().locator('.marker'), 4 * DAY_PX);
+  await expect.poll(() => linear.operations('GanttUpdateDueDate').length).toBe(2);
+  expect(linear.issue('MOB-6').dueDate).toBe(today());
+  await expect(track().locator('.bar:not(.late)')).toHaveCount(1);
+  await expect(track().locator('.marker, .late-link, .bar.late')).toHaveCount(0);
+});
+
 test('sets a due date with the date picker and moves the issue out of Unscheduled', async ({ page, linear }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);

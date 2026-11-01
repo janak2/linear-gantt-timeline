@@ -7,12 +7,17 @@ export const SCALES = {
 };
 
 // started: actual start day (startedAt), never the creation date.
-export function issueSchedule(issue) {
+// A late issue started after its due date; it runs until it was finished, or until today.
+export function issueSchedule(issue, today) {
   const due = dayFromDate(issue.dueDate);
   const started = issue.startedAt ? localDay(issue.startedAt) : null;
   if (due === null) return { kind: 'unscheduled', started, due };
-  if (started !== null && started <= due) return { kind: 'bar', started, due };
-  return { kind: 'marker', started, due };
+  if (started === null) return { kind: 'marker', started, due };
+  if (started <= due) return { kind: 'bar', started, due };
+  const type = issue.state?.type;
+  if (type !== 'completed' && type !== 'canceled') return { kind: 'late', started, due, end: today };
+  const finishedAt = type === 'completed' ? issue.completedAt : issue.canceledAt;
+  return { kind: 'late', started, due, end: finishedAt ? Math.max(localDay(finishedAt), started) : started };
 }
 
 const weekday = day => (day + 4) % 7; // 0 = Sunday; day 0 was a Thursday.
@@ -27,7 +32,7 @@ function nextMonth(day) {
 }
 
 export function chartRange(schedules, today, scale) {
-  const days = schedules.flatMap(schedule => [schedule.started, schedule.due]).filter(day => day !== null);
+  const days = schedules.flatMap(schedule => [schedule.started, schedule.due, schedule.end ?? null]).filter(day => day !== null);
   const { padding } = SCALES[scale];
   let start = Math.min(today, ...days) - padding;
   let end = Math.max(today, ...days) + padding;
