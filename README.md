@@ -4,7 +4,7 @@ A Chrome extension that adds a **Gantt** tab to every Linear project. Bars run f
 
 - Bars from actual start to due date; a due-date marker for issues that have not started; issues without a due date under **Unscheduled**.
 - Change a due date by dragging the bar's right edge or the marker, with the date picker, or by clearing it. Only `dueDate` is written, and an edit is refused if someone else changed the due date since the chart loaded.
-- Search, assignee and status filters, day/week/month scales, Today, and links to each issue.
+- Search, assignee and status filters, sorting by due date, status or priority, day/week/month scales, Today, and links to each issue.
 - Sign-in with Linear OAuth (authorization code with PKCE, no client secret).
 
 Planned start dates are not editable: Linear's API has no planned-start field for issues.

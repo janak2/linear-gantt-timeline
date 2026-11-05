@@ -20,6 +20,15 @@
         <option value="assignee">Assignee</option>
       </select>
     </label>
+    <label class="group-by">Sort
+      <select id="sort">
+        <option value="default">Default</option>
+        <option value="dueDate">Due date</option>
+        <option value="status">Status</option>
+        <option value="priority">Priority</option>
+      </select>
+    </label>
+    <button type="button" id="sort-direction" title="Sort direction" hidden>Ascending</button>
     <div class="segmented" role="group" aria-label="Time scale">
       <button type="button" data-scale="day" aria-pressed="false">Day</button>
       <button type="button" data-scale="week" aria-pressed="true">Week</button>

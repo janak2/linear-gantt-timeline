@@ -44,7 +44,7 @@ test('remembers the setting across reloads and None restores the flat list', asy
   await page.goto(`https://linear.app${MOBILE}`);
   let frame = await openGantt(page);
   await frame.locator('#group-by').selectOption('parent');
-  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: [], groupBy: 'parent' });
+  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: [], groupBy: 'parent', sort: 'default', descending: false });
 
   await page.reload();
   frame = await openGantt(page);
@@ -55,7 +55,7 @@ test('remembers the setting across reloads and None restores the flat list', asy
   await expect(frame.locator('.row.parent-row')).toHaveCount(0);
   await expect(identifiers(frame)).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-2', 'MOB-3', 'MOB-5']);
   await expect(row(frame, 'MOB-4').locator('.label')).toHaveCSS('padding-left', '16px');
-  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: [], groupBy: 'none' });
+  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: [], groupBy: 'none', sort: 'default', descending: false });
 });
 
 test('keeps an earlier "Group by parent" setting', async ({ page, worker }) => {

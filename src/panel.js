@@ -1,5 +1,5 @@
 import { dateFromDay, dayFromDate, formatDay, isCalendarDate, localDay } from './dates.js';
-import { SCALES, chartRange, chartWidth, dayToX, issueSchedule, ticks, xToDay } from './timeline.js';
+import { SCALES, SORTS, arrange, chartRange, chartWidth, dayToX, issueOrder, issueSchedule, ticks, xToDay } from './timeline.js';
 
 const LINEAR_ORIGIN = 'https://linear.app';
 const LABEL_WIDTH = 400;
@@ -25,6 +25,8 @@ const state = {
   saves: new Map(), // issue id -> { status: 'pending' | 'saved' | 'error', changes?, message? }
   collapsed: new Set(), // section titles, and `${section}/${assignee id or 'none'}` for assignee groups
   groupBy: 'none',
+  sort: 'default',
+  descending: false,
   loadId: 0,
   dragging: false,
   renderQueued: false
@@ -130,6 +132,7 @@ async function load() {
     if (Object.hasOwn(SCALES, view?.scale)) setScale(view.scale);
     if (Array.isArray(view?.collapsed)) state.collapsed = new Set(view.collapsed);
     setGroupBy(view?.groupBy ?? (view?.byParent === true ? 'parent' : 'none'));
+    setSort(view?.sort, view?.descending === true);
     const notes = [];
     if (data.truncated) notes.push(`Showing the first ${data.issues.length.toLocaleString()} issues in this project.`);
     if (data.partial) notes.push('Some issues are hidden because you do not have access to them.');
@@ -205,8 +208,16 @@ function setGroupBy(groupBy) {
   $('group-by').value = state.groupBy;
 }
 
+function setSort(sort, descending) {
+  state.sort = SORTS.includes(sort) ? sort : 'default';
+  state.descending = descending;
+  $('sort').value = state.sort;
+  $('sort-direction').hidden = state.sort === 'default';
+  $('sort-direction').textContent = descending ? 'Descending' : 'Ascending';
+}
+
 function saveView() {
-  chrome.storage.local.set({ view: { scale: state.scale, collapsed: [...state.collapsed], groupBy: state.groupBy } });
+  chrome.storage.local.set({ view: { scale: state.scale, collapsed: [...state.collapsed], groupBy: state.groupBy, sort: state.sort, descending: state.descending } });
 }
 
 function changeFilters() {
@@ -298,26 +309,6 @@ function assigneeGroups(items) {
   return [...Map.groupBy(items, item => item.issue.assignee?.id ?? 'none')]
     .map(([id, group]) => ({ id, name: group[0].issue.assignee?.name ?? 'Unassigned', items: group }))
     .sort((a, b) => (a.id === 'none') - (b.id === 'none') || a.name.localeCompare(b.name));
-}
-
-function arrange(items) {
-  if (state.groupBy !== 'parent') return items.map(item => ({ item, depth: 0 }));
-  const ids = new Set(items.map(item => item.issue.id));
-  const children = Map.groupBy(items.filter(item => item.issue.parent), item => item.issue.parent.id);
-  const entries = [];
-  const add = (item, depth) => {
-    entries.push({ item, depth });
-    for (const child of children.get(item.issue.id) ?? []) add(child, depth + 1);
-  };
-  for (const item of items) {
-    const parent = item.issue.parent;
-    if (!parent) add(item, 0);
-    else if (!ids.has(parent.id) && children.get(parent.id)[0] === item) {
-      entries.push({ parent, depth: 0 });
-      for (const child of children.get(parent.id)) add(child, 1);
-    }
-  }
-  return entries;
 }
 
 function statusText(save) {
@@ -530,7 +521,8 @@ function render({ scrollTo = null } = {}) {
   const unscheduled = undated.filter(item => item.issue.state.type !== 'started')
     .sort((a, b) => STATE_ORDER.indexOf(b.issue.state.type) - STATE_ORDER.indexOf(a.issue.state.type) || byIdentifier(a, b));
   const completed = [...done.filter(dated).sort(bySchedule), ...done.filter(item => !dated(item)).sort(byIdentifier)];
-  const issueRows = warning => items => arrange(items)
+  const order = issueOrder(state.sort, state.descending);
+  const issueRows = warning => items => (state.groupBy === 'parent' ? arrange(items, order) : items.toSorted((a, b) => order(a.display, b.display)).map(item => ({ item, depth: 0 })))
     .map(({ item, parent, depth }) => parent ? parentRow(parent) : issueRow(item, today, warning, depth));
   const toRows = (warning = false) => (items, section) => state.groupBy === 'assignee'
     ? assigneeGroups(items).flatMap(group => sectionRows(group.name, group.items, issueRows(warning), 'subsection', `${section}/${group.id}`))
@@ -686,6 +678,16 @@ for (const button of document.querySelectorAll('[data-scale]')) {
 }
 $('group-by').addEventListener('change', () => {
   setGroupBy($('group-by').value);
+  render();
+  saveView();
+});
+$('sort').addEventListener('change', () => {
+  setSort($('sort').value, state.descending);
+  render();
+  saveView();
+});
+$('sort-direction').addEventListener('click', () => {
+  setSort(state.sort, !state.descending);
   render();
   saveView();
 });

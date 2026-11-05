@@ -12,12 +12,12 @@ export class LinearError extends Error {
   }
 }
 
-const ISSUE_FIELDS = `id identifier title url dueDate startedAt completedAt canceledAt
-  state { id name type color }
+const ISSUE_FIELDS = `id identifier title url dueDate startedAt completedAt canceledAt priority
+  state { id name type color position }
   assignee { id name }
   team { id }
   project { id }
-  parent { id identifier title url }
+  parent { id identifier title url dueDate priority state { type position } }
   labels(first: 10) { nodes { id name color } }`;
 
 const toIssue = ({ labels, ...issue }) => ({ ...issue, labels: labels?.nodes ?? [] });

@@ -71,3 +71,51 @@ export function xToDay(x, range, scale) {
 export function chartWidth(range, scale) {
   return (range.end - range.start + 1) * SCALES[scale].pxPerDay;
 }
+
+const STATE_TYPES = ['triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'];
+const SORT_KEYS = {
+  dueDate: issue => issue.dueDate ? [dayFromDate(issue.dueDate)] : null,
+  status: issue => issue.state ? [STATE_TYPES.indexOf(issue.state.type), issue.state.position ?? 0] : null,
+  priority: issue => issue.priority ? [issue.priority] : null
+};
+export const SORTS = ['default', ...Object.keys(SORT_KEYS)];
+
+// Issues missing the value go last in both directions. Ties compare equal, so a stable sort keeps the default order.
+export function issueOrder(sort, descending) {
+  const key = SORT_KEYS[sort];
+  if (!key) return () => 0;
+  return (a, b) => {
+    const x = key(a);
+    const y = key(b);
+    if (!x || !y) return !x - !y;
+    const index = x.findIndex((value, i) => value !== y[i]);
+    return index === -1 ? 0 : (x[index] - y[index]) * (descending ? -1 : 1);
+  };
+}
+
+// Nests each issue under its parent, and issues whose parent is not shown under a placeholder for it.
+// Top-level rows are ordered by their own issue, or by the parent's own fields for a placeholder.
+export function arrange(items, order) {
+  const byOrder = (a, b) => order(a.display, b.display);
+  const ids = new Set(items.map(item => item.issue.id));
+  const children = Map.groupBy(items.filter(item => item.issue.parent), item => item.issue.parent.id);
+  const tops = [];
+  for (const item of items) {
+    const parent = item.issue.parent;
+    if (!parent) tops.push({ item, own: item.display });
+    else if (!ids.has(parent.id) && children.get(parent.id)[0] === item) tops.push({ parent, own: parent });
+  }
+  const entries = [];
+  const add = (item, depth) => {
+    entries.push({ item, depth });
+    for (const child of (children.get(item.issue.id) ?? []).toSorted(byOrder)) add(child, depth + 1);
+  };
+  for (const { item, parent } of tops.sort((a, b) => order(a.own, b.own))) {
+    if (item) add(item, 0);
+    else {
+      entries.push({ parent, depth: 0 });
+      for (const child of children.get(parent.id).toSorted(byOrder)) add(child, 1);
+    }
+  }
+  return entries;
+}

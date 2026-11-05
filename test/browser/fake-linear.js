@@ -19,7 +19,8 @@ function issue(n, prefix, projectId, fields) {
     startedAt: null,
     completedAt: null,
     canceledAt: null,
-    state: { id: 'todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa' },
+    priority: 0,
+    state: { id: 'todo', name: 'Todo', type: 'unstarted', color: '#9ea0aa', position: 0 },
     assignee: null,
     team: { id: prefix === 'WEB' ? 'team-web' : 'team-mob' },
     project: { id: projectId },
@@ -29,8 +30,8 @@ function issue(n, prefix, projectId, fields) {
   };
 }
 
-const inProgress = { id: 'started', name: 'In Progress', type: 'started', color: '#f2c94c' };
-const done = { id: 'done', name: 'Done', type: 'completed', color: '#5e6ad2' };
+const inProgress = { id: 'started', name: 'In Progress', type: 'started', color: '#f2c94c', position: 0 };
+const done = { id: 'done', name: 'Done', type: 'completed', color: '#5e6ad2', position: 0 };
 const maya = { id: 'user-maya', name: 'Maya Chen' };
 const sam = { id: 'user-sam', name: 'Sam Ortiz' };
 const priya = { id: 'user-priya', name: 'Priya Nair' };
@@ -60,17 +61,17 @@ export class FakeLinear {
       { id: 'project-website', name: 'Website', slugId: 'a1b2c3d4e5f6', url: 'https://linear.app/acme/project/website-a1b2c3d4e5f6' }
     ];
     this.issues = [
-      issue(1, 'MOB', 'project-mobile', { title: 'Build sync engine', startedAt: `${shift(t, -5)}T09:30:00.000Z`, dueDate: shift(t, 5), state: inProgress, assignee: maya, labels: labels(feature, sync, ios, android) }),
-      issue(2, 'MOB', 'project-mobile', { title: 'Design review', dueDate: shift(t, 10), assignee: sam, labels: labels(design) }),
-      issue(3, 'MOB', 'project-mobile', { title: 'Write onboarding docs' }),
-      issue(4, 'MOB', 'project-mobile', { title: 'Ship beta', startedAt: `${shift(t, -2)}T12:00:00.000Z`, dueDate: shift(t, 12), state: inProgress, assignee: sam, labels: labels(bug, ios) }),
+      issue(1, 'MOB', 'project-mobile', { title: 'Build sync engine', startedAt: `${shift(t, -5)}T09:30:00.000Z`, dueDate: shift(t, 5), state: inProgress, priority: 2, assignee: maya, labels: labels(feature, sync, ios, android) }),
+      issue(2, 'MOB', 'project-mobile', { title: 'Design review', dueDate: shift(t, 10), priority: 1, assignee: sam, labels: labels(design) }),
+      issue(3, 'MOB', 'project-mobile', { title: 'Write onboarding docs', priority: 4 }),
+      issue(4, 'MOB', 'project-mobile', { title: 'Ship beta', startedAt: `${shift(t, -2)}T12:00:00.000Z`, dueDate: shift(t, 12), state: inProgress, priority: 3, assignee: sam, labels: labels(bug, ios) }),
       issue(5, 'MOB', 'project-mobile', { title: 'Set up CI', startedAt: `${shift(t, -20)}T08:00:00.000Z`, dueDate: shift(t, -10), completedAt: `${shift(t, -11)}T17:00:00.000Z`, state: done, assignee: maya }),
       issue(6, 'MOB', 'project-mobile', { title: 'Fix login crash', dueDate: shift(t, -3), assignee: maya }),
       issue(1, 'WEB', 'project-website', { title: 'Landing page', dueDate: shift(t, 3), assignee: sam })
     ];
     for (const [child, parent] of [['MOB-2', 'WEB-1'], ['MOB-3', 'MOB-1'], ['MOB-4', 'MOB-1'], ['MOB-6', 'WEB-1']]) {
-      const { id, identifier, title, url } = this.issue(parent);
-      this.issue(child).parent = { id, identifier, title, url };
+      const { id, identifier, title, url, dueDate, priority, state } = this.issue(parent);
+      this.issue(child).parent = { id, identifier, title, url, dueDate, priority, state: { type: state.type, position: state.position } };
     }
     this.teams = [
       {
@@ -184,8 +185,8 @@ export class FakeLinear {
       }
       case 'GanttUpdateStatus': {
         const found = this.issues.find(item => item.id === variables.id);
-        const { id, name, type, color } = this.teams.flatMap(team => team.states).find(item => item.id === variables.stateId);
-        found.state = { id, name, type, color };
+        const { id, name, type, color, position } = this.teams.flatMap(team => team.states).find(item => item.id === variables.stateId);
+        found.state = { id, name, type, color, position };
         return { data: { issueUpdate: { success: true, issue: structuredClone(found) } } };
       }
       case 'GanttUpdateAssignee': {

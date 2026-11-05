@@ -357,7 +357,7 @@ test('remembers collapsed groups and the scale across reloads and projects', asy
   let frame = await openGantt(page);
   await frame.locator('.section-toggle', { hasText: /^Scheduled/ }).click();
   await frame.locator('[data-scale="month"]').click();
-  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'month', collapsed: ['Scheduled'], groupBy: 'none' });
+  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'month', collapsed: ['Scheduled'], groupBy: 'none', sort: 'default', descending: false });
 
   await page.reload();
   frame = await openGantt(page);

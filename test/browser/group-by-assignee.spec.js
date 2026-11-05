@@ -47,7 +47,7 @@ test('collapses an assignee group in one section only and remembers it and the g
   await expect(maya().nth(1)).toHaveAttribute('aria-expanded', 'true');
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-4', 'MOB-2', 'MOB-3', 'MOB-5']);
   await expect(maya().nth(0)).toBeFocused();
-  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: ['Scheduled/user-maya'], groupBy: 'assignee' });
+  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: ['Scheduled/user-maya'], groupBy: 'assignee', sort: 'default', descending: false });
 
   await page.reload();
   frame = await openGantt(page);
@@ -57,7 +57,7 @@ test('collapses an assignee group in one section only and remembers it and the g
 
   await maya().nth(0).click();
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-2', 'MOB-3', 'MOB-5']);
-  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: [], groupBy: 'assignee' });
+  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'week', collapsed: [], groupBy: 'assignee', sort: 'default', descending: false });
 });
 
 test('moves an issue to its new assignee group after reassigning it', async ({ page }) => {

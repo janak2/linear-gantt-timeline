@@ -22,7 +22,7 @@ Gantt View for Linear adds a Gantt tab next to Overview and Issues in every Line
 - Change a due date by dragging the end of a bar or the marker, by picking a date, or by clearing it. Change an issue's status or assignee from its row. Changes are saved to Linear right away.
 - If someone else changed an issue since the chart loaded, your edit is not saved over theirs.
 - Group issues by parent issue or by assignee.
-- Search, filter by assignee or status, switch between day, week, and month scales, and jump to today. The chart remembers your view.
+- Search, filter by assignee or status, sort by due date, status, or priority, switch between day, week, and month scales, and jump to today. The chart remembers your view.
 - Open a project's chart directly at its /gantt address.
 - Follows Linear's light and dark themes and works with the keyboard.
 
