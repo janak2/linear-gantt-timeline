@@ -23,6 +23,7 @@ export function start() {
   for (const root of [document.documentElement, document.body]) themeObserver.observe(root, { attributes: true });
   addEventListener('resize', schedule);
   addEventListener('message', onFrameMessage);
+  addEventListener('focus', onWindowFocus);
   document.addEventListener('click', onDocumentClick, true);
   globalThis.navigation?.addEventListener('currententrychange', schedule);
   update();
@@ -34,6 +35,7 @@ function teardown() {
   clearTimeout(timer);
   removeEventListener('resize', schedule);
   removeEventListener('message', onFrameMessage);
+  removeEventListener('focus', onWindowFocus);
   document.removeEventListener('click', onDocumentClick, true);
   globalThis.navigation?.removeEventListener('currententrychange', schedule);
   removeView();
@@ -174,6 +176,7 @@ function insertTab(nav) {
 
 function open() {
   if (!view?.tab) return;
+  const wasOpen = view.open;
   if (parseProjectPath(location.pathname)?.view !== 'gantt') {
     view.linearURL = location.pathname + location.search + location.hash;
     history.replaceState(history.state, '', `${location.pathname.replace(/^(\/[^/]+\/project\/[^/]+).*/, '$1/gantt')}${location.search}${location.hash}`);
@@ -183,12 +186,14 @@ function open() {
   position();
   setActive();
   view.frame.focus();
+  if (!wasOpen) postActive();
 }
 
 function close() {
   if (!view?.open) return;
   view.open = false;
   view.host.style.visibility = 'hidden';
+  postActive();
   resetTabStyles();
   view.tab?.setAttribute('aria-pressed', 'false');
 }
@@ -202,7 +207,10 @@ function createPanel() {
   frame.style.cssText = 'display:block;width:100%;height:100%;border:0;';
   frame.src = `${PANEL_URL}?${new URLSearchParams({ workspace: view.route.workspace, slug: view.route.slug, theme: theme() })}`;
   // Focus given to the frame before its page loads is lost when the page commits.
-  frame.addEventListener('load', () => { if (document.activeElement === host) frame.contentWindow.focus(); });
+  frame.addEventListener('load', () => {
+    if (document.activeElement === host) frame.contentWindow.focus();
+    postActive();
+  });
   host.attachShadow({ mode: 'closed' }).append(frame);
   document.documentElement.append(host);
   view.host = host;
@@ -298,4 +306,16 @@ function onDocumentClick(event) {
 function onFrameMessage(event) {
   if (!view?.frame || event.source !== view.frame.contentWindow || event.origin !== EXTENSION_ORIGIN) return;
   if (event.data?.type === 'linear-gantt:focus-tab') view.tab?.focus();
+}
+
+function postActive() {
+  view?.frame?.contentWindow?.postMessage({ type: 'linear-gantt:active', active: view.open }, EXTENSION_ORIGIN);
+}
+
+function onWindowFocus() {
+  if (!view?.open) return;
+  // Moving focus out of the iframe also focuses this window; let tab clicks finish first.
+  setTimeout(() => {
+    if (view?.open) view.frame.contentWindow?.postMessage({ type: 'linear-gantt:refresh' }, EXTENSION_ORIGIN);
+  }, 100);
 }

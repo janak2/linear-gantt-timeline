@@ -7,6 +7,7 @@ const SHOWN_LABELS = 2;
 const STATE_ORDER = ['triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'];
 const SAVED_MS = 2500;
 const INPUT_DELAY_MS = 700;
+const SYNC_MS = 30_000;
 const SIGNED_OUT = new Set(['signed_out', 'revoked']);
 
 const params = new URLSearchParams(location.search);
@@ -31,6 +32,11 @@ const state = {
   dragging: false,
   renderQueued: false
 };
+
+let active = false;
+let opened = false;
+let syncing = false;
+let editVersion = 0;
 
 function applyTheme(theme) {
   document.documentElement.dataset.theme = theme === 'light' ? 'light' : 'dark';
@@ -159,6 +165,39 @@ async function connect() {
     return error.code === 'not_configured' ? gateFor(error) : connectGate(error.message);
   }
   await load();
+}
+
+// Refresh external edits without resetting the view or replacing an in-progress edit.
+function editing() {
+  return state.dragging || [...state.saves.values()].some(save => save.status === 'pending') ||
+    (chart.contains(document.activeElement) && document.activeElement.matches('input, select')) ||
+    !!document.querySelector(':popover-open');
+}
+
+async function sync() {
+  if (!active || document.hidden || !state.project || syncing || $('refresh').disabled || editing()) return;
+  const project = state.project;
+  const loadId = state.loadId;
+  const version = editVersion;
+  syncing = true;
+  try {
+    const data = await send('LOAD_PROJECT', route);
+    if (state.project !== project || state.loadId !== loadId || editVersion !== version || !active || editing()) return;
+    if (JSON.stringify([state.issues, state.milestones, [...state.teams.values()]]) ===
+      JSON.stringify([data.issues, data.milestones, data.teams])) return;
+    const filters = { assignee: selected('assignee'), status: selected('status') };
+    state.issues = data.issues;
+    state.milestones = data.milestones;
+    state.teams = new Map(data.teams.map(team => [team.id, team]));
+    fillFilters(filters);
+    render();
+  } catch (error) {
+    if (state.project !== project || state.loadId !== loadId) return;
+    if (SIGNED_OUT.has(error.code) || error.code === 'workspace_mismatch' || error.code === 'disconnected') gateFor(error);
+    // Keep the last good chart on transient failures; the next sync can try again.
+  } finally {
+    syncing = false;
+  }
 }
 
 const selected = id => [...$(`${id}-menu`).querySelectorAll('input:checked')].map(input => input.value);
@@ -628,6 +667,7 @@ async function save(issue, key, value) {
   const expected = edit.id(issue[key]);
   if (edit.id(value) === expected || state.saves.get(issue.id)?.status === 'pending') return;
   const project = state.project;
+  editVersion++;
   state.saves.set(issue.id, { status: 'pending', changes: { [key]: value } });
   render();
   let outcome;
@@ -695,8 +735,17 @@ $('today').addEventListener('click', () => scrollToDay(localDay(new Date())));
 $('refresh').addEventListener('click', load);
 
 addEventListener('message', event => {
-  if (event.source === parent && event.origin === LINEAR_ORIGIN && event.data?.type === 'linear-gantt:theme') applyTheme(event.data.theme);
+  if (event.source !== parent || event.origin !== LINEAR_ORIGIN) return;
+  if (event.data?.type === 'linear-gantt:theme') applyTheme(event.data.theme);
+  if (event.data?.type === 'linear-gantt:active') {
+    active = event.data.active === true;
+    if (active && opened) sync();
+    if (active) opened = true;
+  }
+  if (event.data?.type === 'linear-gantt:refresh') sync();
 });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
+setInterval(sync, SYNC_MS);
 addEventListener('blur', () => document.querySelector(':popover-open')?.hidePopover());
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape' && !state.dragging && !event.target.matches?.('input, select, [popovertarget], [popover] *')) {
