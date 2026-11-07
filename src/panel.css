@@ -177,6 +177,7 @@ a:hover { text-decoration: underline; }
 
 .legend { display: flex; gap: 18px; padding: 8px 16px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--muted); }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend #version { margin-left: auto; flex-shrink: 0; }
 .legend-bar { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent), transparent 72%); }
 .legend-marker { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); border: 2px solid var(--accent); border-radius: 2px; }
 .legend-late { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--danger); }

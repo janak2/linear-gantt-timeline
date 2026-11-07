@@ -690,6 +690,7 @@ async function save(issue, key, value) {
 }
 
 applyTheme(params.get('theme'));
+$('version').textContent = `v${chrome.runtime.getManifest().version}`;
 $('search').addEventListener('input', changeFilters);
 for (const id of ['assignee', 'status']) {
   const menu = $(`${id}-menu`);
