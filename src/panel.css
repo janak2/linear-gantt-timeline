@@ -160,17 +160,12 @@ a:hover { text-decoration: underline; }
   position: absolute; top: 15px; width: 16px; height: 16px; margin-left: -8px; transform: rotate(45deg);
   background: var(--bg); border: 2px solid var(--state); border-radius: 3px; cursor: ew-resize; touch-action: none; z-index: 1;
 }
+.bar.done, .legend-done { background: color-mix(in srgb, var(--state), transparent 45%); }
 .bar.late { border-color: var(--danger); }
 .bar.late, .legend-late {
   background: repeating-linear-gradient(-45deg, color-mix(in srgb, var(--danger), transparent 62%) 0 5px, color-mix(in srgb, var(--danger), transparent 84%) 5px 10px);
 }
 .late-link { position: absolute; top: 22px; border-top: 2px dashed var(--danger); opacity: .7; }
-.issue.has-completion { min-height: 100px; }
-.chart-date { position: absolute; z-index: 2; border-left: 2px solid var(--muted); font-size: 11px; white-space: nowrap; padding: 0 6px; }
-.chart-date time { background: var(--bg); padding: 1px 3px; }
-.chart-date-completed { top: 9px; height: 48px; padding-top: 28px; border-color: var(--success); color: var(--success); }
-.chart-date-completed::before { content: ""; position: absolute; left: -5px; top: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--success); }
-.chart-date-due { top: 62px; height: 20px; color: var(--muted); }
 .milestone { position: absolute; top: 16px; width: 14px; height: 14px; margin-left: -7px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; z-index: 1; }
 .pending .bar, .pending .marker { opacity: .55; }
 .dragging, .dragging * { cursor: ew-resize !important; user-select: none; }
@@ -181,5 +176,6 @@ a:hover { text-decoration: underline; }
 .legend #version { margin-left: auto; flex-shrink: 0; }
 .legend-bar { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--accent); background: color-mix(in srgb, var(--accent), transparent 72%); }
 .legend-marker { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); border: 2px solid var(--accent); border-radius: 2px; }
+.legend-done { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--accent); --state: var(--accent); }
 .legend-late { display: inline-block; width: 22px; height: 10px; border-radius: 3px; border: 1px solid var(--danger); }
 .legend-milestone { display: inline-block; width: 9px; height: 9px; transform: rotate(45deg); background: var(--accent); border-radius: 2px; }

@@ -363,7 +363,19 @@ function drawTrack(track, issue, schedule, pending) {
   const lateDays = schedule.started - schedule.due;
   const late = schedule.kind === 'late' ? `\nStarted ${lateDays} day${lateDays === 1 ? '' : 's'} after due date` : '';
   const tooltip = `${issue.identifier} ${issue.title}\n${started}\nDue: ${formatDay(schedule.due, { year: 'numeric' })}${completion}${late}`;
-  if (schedule.kind === 'bar') {
+  if (completed !== null) {
+    const start = Math.min(schedule.started ?? completed, completed);
+    track.append(element('div', {
+      className: 'bar done',
+      title: tooltip,
+      style: { left: `${dayToX(start, range, scale)}px`, width: `${(completed - start + 1) * px}px` }
+    }, element('span', { className: 'bar-text' }, issue.title)));
+    if (schedule.due !== null) {
+      const marker = element('div', { className: 'marker', title: tooltip, style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px` } });
+      if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, null, marker));
+      track.append(marker);
+    }
+  } else if (schedule.kind === 'bar') {
     const bar = element('div', {
       className: 'bar',
       title: tooltip,
@@ -386,15 +398,6 @@ function drawTrack(track, issue, schedule, pending) {
     const marker = element('div', { className: 'marker', title: tooltip, style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px` } });
     if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, null, marker));
     track.append(marker);
-  }
-  if (completed !== null) {
-    for (const [kind, day, text] of [['completed', completed, 'Completed'], ['due', schedule.due, 'Due']]) {
-      if (day === null) continue;
-      track.append(element('div', {
-        className: `chart-date chart-date-${kind}`,
-        style: { left: `${dayToX(day, range, scale) + px / 2}px` }
-      }, element('time', { datetime: dateFromDay(day) }, `${text} ${formatDay(day, { year: 'numeric' })}`)));
-    }
   }
 }
 
@@ -504,7 +507,7 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
         `Completed ${formatDay(completed, { year: 'numeric' })}`))] : []));
   const track = element('div', { className: 'track' });
   drawTrack(track, display, schedule, pending);
-  return element('div', { className: `row issue${completed !== null ? ' has-completion' : ''}${pending ? ' pending' : ''}${warning ? ' warning' : ''}`, 'data-issue': issue.id, style: { '--state': color, '--depth': depth } }, label, track);
+  return element('div', { className: `row issue${pending ? ' pending' : ''}${warning ? ' warning' : ''}`, 'data-issue': issue.id, style: { '--state': color, '--depth': depth } }, label, track);
 }
 
 function parentRow(parent) {

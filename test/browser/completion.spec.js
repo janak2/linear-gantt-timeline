@@ -16,12 +16,12 @@ test('shows actual completion separately from the due date in the unified list',
   await expect(completed.locator('.label time')).toHaveText('Completed Nov 9, 2026');
   await expect(completed.locator('.label time')).toHaveAttribute('datetime', '2026-11-09T17:00:00Z');
   await expect(completed.locator('.due-input')).toHaveValue('2026-11-12');
-  await expect(completed.locator('.track .chart-date-completed')).toHaveText('Completed Nov 9, 2026');
-  await expect(completed.locator('.track .chart-date-due')).toHaveText('Due Nov 12, 2026');
-  const completionX = await completed.locator('.chart-date-completed').evaluate(node => parseFloat(node.style.left));
-  const dueX = await completed.locator('.chart-date-due').evaluate(node => parseFloat(node.style.left));
-  expect(dueX - completionX).toBe(36);
-  await expect(completed.locator('.bar')).toHaveAttribute('title', /Due: Nov 12, 2026\nCompleted: Nov 9, 2026/);
+  await expect(completed.locator('.track time, .chart-date')).toHaveCount(0);
+  const bar = await completed.locator('.bar.done').evaluate(node => ({ left: parseFloat(node.style.left), width: parseFloat(node.style.width) }));
+  const dueX = await completed.locator('.marker').evaluate(node => parseFloat(node.style.left));
+  expect(bar.width).toBe(20 * 12);
+  expect(dueX - (bar.left + bar.width)).toBe(3 * 12 - 6);
+  await expect(completed.locator('.bar.done')).toHaveAttribute('title', /Due: Nov 12, 2026\nCompleted: Nov 9, 2026/);
   await expect(row(frame, 'MOB-1').locator('time')).toHaveCount(0);
   await expect(row(frame, 'MOB-2').locator('time')).toHaveCount(0);
   for (const theme of ['dark', 'light']) {
@@ -38,7 +38,7 @@ test('does not invent a completion date when Linear has none', async ({ page, li
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
   await expect(row(frame, 'MOB-5').locator('.label time')).toHaveCount(0);
-  await expect(row(frame, 'MOB-5').locator('.chart-date-completed')).toHaveCount(0);
+  await expect(row(frame, 'MOB-5').locator('.bar.done')).toHaveCount(0);
 });
 
 test.describe('completion date in the local time zone', () => {
@@ -49,23 +49,21 @@ test.describe('completion date in the local time zone', () => {
     await page.goto(`https://linear.app${MOBILE}`);
     const frame = await openGantt(page);
     await expect(row(frame, 'MOB-5').locator('.label time')).toHaveText('Completed Nov 9, 2026');
-    await expect(row(frame, 'MOB-5').locator('.chart-date-completed')).toHaveText('Completed Nov 9, 2026');
-    await expect(row(frame, 'MOB-5').locator('.chart-date-due')).toHaveCount(0);
+    await expect(row(frame, 'MOB-5').locator('.bar.done')).toHaveAttribute('title', /Completed: Nov 9, 2026/);
+    await expect(row(frame, 'MOB-5').locator('.marker')).toHaveCount(0);
   });
 });
 
-for (const [name, completedAt] of [['after the due date', '2027-04-20T17:00:00Z'], ['on the due date', '2026-11-12T17:00:00Z']]) {
-  test(`shows both chart dates when completed ${name}, even without an actual start`, async ({ page, linear }) => {
+for (const [name, completedAt, gap] of [['after the due date', '2026-11-20T17:00:00Z', -8], ['on the due date', '2026-11-12T17:00:00Z', 0]]) {
+  test(`ends the bar on the completion day and keeps the due marker when completed ${name}`, async ({ page, linear }) => {
     Object.assign(linear.issue('MOB-5'), { startedAt: null, completedAt, dueDate: '2026-11-12' });
     await page.goto(`https://linear.app${MOBILE}`);
     const frame = await openGantt(page);
     const completed = row(frame, 'MOB-5');
-    const marker = completed.locator('.chart-date-completed');
-    await expect(marker.locator('time')).toHaveAttribute('datetime', completedAt.slice(0, 10));
-    await expect(completed.locator('.chart-date-due')).toHaveText('Due Nov 12, 2026');
-    expect(await marker.evaluate(node => node.offsetLeft + node.offsetWidth <= node.parentElement.offsetWidth)).toBe(true);
-    const dueBox = await completed.locator('.chart-date-due').boundingBox();
-    const completionBox = await marker.boundingBox();
-    expect(dueBox.y).toBeGreaterThanOrEqual(completionBox.y + completionBox.height);
+    const bar = await completed.locator('.bar.done').evaluate(node => ({ left: parseFloat(node.style.left), width: parseFloat(node.style.width) }));
+    const dueX = await completed.locator('.marker').evaluate(node => parseFloat(node.style.left));
+    expect(bar.width).toBe(12);
+    expect(dueX - (bar.left + bar.width)).toBe(gap * 12 - 6);
+    await expect(completed.locator('.track time, .chart-date')).toHaveCount(0);
   });
 }
