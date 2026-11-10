@@ -12,34 +12,26 @@ async function dayScale(page) {
 
 test.beforeEach(async ({ signIn }) => signIn());
 
-test('drags the right edge of a bar to change the due date', async ({ page, linear }) => {
+test('drags the due-date marker of a started issue without moving its bar', async ({ page, linear }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await dayScale(page);
   const bar = row(frame, 'MOB-1').locator('.bar');
-  await expect(bar.locator('.handle')).toHaveCount(1);
   const before = await bar.boundingBox();
-
-  await drag(page, bar.locator('.handle'), 3 * DAY_PX);
+  await drag(page, row(frame, 'MOB-1').locator('.marker'), 3 * DAY_PX);
   await expect(row(frame, 'MOB-1').locator('.save-state')).toHaveText('Saved');
   const update = linear.operations('GanttUpdateDueDate');
   expect(update).toHaveLength(1);
   expect(update[0].variables).toEqual({ id: 'project-mobile-issue-1', dueDate: shift(today(), 8) });
   await expect(row(frame, 'MOB-1').locator('.due-input')).toHaveValue(shift(today(), 8));
-
-  const after = await row(frame, 'MOB-1').locator('.bar').boundingBox();
-  expect(after.x).toBeCloseTo(before.x, 0);
-  expect(after.width).toBeCloseTo(before.width + 3 * DAY_PX, 0);
+  expect(await row(frame, 'MOB-1').locator('.bar').boundingBox()).toEqual(before);
 });
 
-test('the start edge cannot be dragged', async ({ page, linear }) => {
+test('the bar itself cannot be dragged', async ({ page, linear }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await dayScale(page);
   const bar = row(frame, 'MOB-1').locator('.bar');
   const box = await bar.boundingBox();
-  await page.mouse.move(box.x + 2, box.y + box.height / 2);
-  await page.mouse.down();
-  await page.mouse.move(box.x - 3 * DAY_PX, box.y + box.height / 2, { steps: 4 });
-  await page.mouse.up();
+  await drag(page, bar, 3 * DAY_PX);
   expect(await row(frame, 'MOB-1').locator('.bar').boundingBox()).toEqual(box);
   expect(linear.operations('GanttUpdateDueDate')).toHaveLength(0);
 });
@@ -66,34 +58,27 @@ test('Escape cancels a drag', async ({ page, linear }) => {
   expect(linear.operations('GanttUpdateDueDate')).toHaveLength(0);
 });
 
-test('draws an issue that started after its due date as a late bar joined to its due-date marker', async ({ page, linear }) => {
-  Object.assign(linear.issue('MOB-6'), { startedAt: `${shift(today(), -1)}T09:00:00.000Z`, state: linear.issue('MOB-1').state });
+test('draws every status the same way: the bar runs from actual start to today or completion, and the due date is the marker', async ({ page, linear }) => {
+  const review = linear.teams[0].states.find(state => state.id === 'review');
+  Object.assign(linear.issue('MOB-6'), { startedAt: `${shift(today(), -1)}T09:00:00.000Z`, state: review });
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await dayScale(page);
-  const track = () => row(frame, 'MOB-6').locator('.track');
-  await expect(track().locator('.bar.late')).toHaveAttribute('title', /\nStarted 2 days after due date$/);
-  await expect(track().locator('.bar.late .handle')).toHaveCount(0);
-  await expect(frame.locator('.legend')).toContainText('Started after due date');
-  const [marker, link, bar, line] = await Promise.all(['.marker', '.late-link', '.bar.late'].map(selector => track().locator(selector).boundingBox())
-    .concat(frame.locator('.today-line').boundingBox()));
-  const due = marker.x + marker.width / 2;
-  expect(link.x).toBeCloseTo(due, 0);
-  expect(link.x + link.width).toBeCloseTo(bar.x, 0);
-  expect(bar.x - due).toBeCloseTo(1.5 * DAY_PX, 0);
-  expect(bar.width).toBeCloseTo(2 * DAY_PX, 0);
-  expect(line.x).toBeGreaterThan(bar.x + bar.width - DAY_PX);
-  expect(line.x).toBeLessThan(bar.x + bar.width);
-
-  await drag(page, track().locator('.marker'), -DAY_PX);
-  await expect(row(frame, 'MOB-6').locator('.save-state')).toHaveText('Saved');
-  expect(linear.issue('MOB-6').dueDate).toBe(shift(today(), -4));
-  await expect(track().locator('.bar.late')).toHaveAttribute('title', /\nStarted 3 days after due date$/);
-
-  await drag(page, track().locator('.marker'), 4 * DAY_PX);
-  await expect.poll(() => linear.operations('GanttUpdateDueDate').length).toBe(2);
-  expect(linear.issue('MOB-6').dueDate).toBe(today());
-  await expect(track().locator('.bar:not(.late)')).toHaveCount(1);
-  await expect(track().locator('.marker, .late-link, .bar.late')).toHaveCount(0);
+  const box = async (id, selector) => row(frame, id).locator(selector).boundingBox();
+  const line = await frame.locator('.today-line').boundingBox();
+  for (const [id, startOffset, dueOffset] of [['MOB-1', -5, 5], ['MOB-6', -1, -3]]) {
+    const [bar, marker] = [await box(id, '.bar'), await box(id, '.marker')];
+    await expect(row(frame, id).locator('.bar')).not.toHaveClass(/done|late/);
+    expect(bar.width).toBeCloseTo((1 - startOffset) * DAY_PX, 0);
+    expect(line.x).toBeGreaterThan(bar.x + bar.width - DAY_PX);
+    expect(line.x).toBeLessThan(bar.x + bar.width);
+    expect(marker.x + marker.width / 2 - (bar.x + bar.width)).toBeCloseTo((dueOffset - 0.5) * DAY_PX, 0);
+  }
+  const done = await box('MOB-5', '.bar.done');
+  const doneMarker = await box('MOB-5', '.marker');
+  expect(done.width).toBeCloseTo(10 * DAY_PX, 0);
+  expect(doneMarker.x + doneMarker.width / 2 - (done.x + done.width)).toBeCloseTo(0.5 * DAY_PX, 0);
+  await expect(frame.locator('.late-link, .bar.late, .handle')).toHaveCount(0);
+  await expect(frame.locator('#legend')).not.toContainText('Started after due date');
 });
 
 test('sets a due date with the date picker in the shared issue list', async ({ page, linear }) => {
@@ -130,13 +115,13 @@ test('marks overdue issues', async ({ page }) => {
 test('restores the previous due date when a save fails', async ({ page, linear }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await dayScale(page);
-  const before = await row(frame, 'MOB-1').locator('.bar').boundingBox();
+  const before = await row(frame, 'MOB-1').locator('.marker').boundingBox();
   linear.respondOnce('GanttUpdateDueDate', { status: 500, body: {} });
-  await drag(page, row(frame, 'MOB-1').locator('.handle'), 2 * DAY_PX);
+  await drag(page, row(frame, 'MOB-1').locator('.marker'), 2 * DAY_PX);
   await expect(row(frame, 'MOB-1').locator('.save-state')).toHaveText('Not saved');
   await expect(row(frame, 'MOB-1').locator('.due-input')).toHaveValue(shift(today(), 5));
-  const after = await row(frame, 'MOB-1').locator('.bar').boundingBox();
-  expect([after.x, after.width]).toEqual([before.x, before.width]);
+  const after = await row(frame, 'MOB-1').locator('.marker').boundingBox();
+  expect(after.x).toBeCloseTo(before.x, 0);
   await expect(frame.locator('#notice')).toContainText('HTTP 500');
   expect(linear.issue('MOB-1').dueDate).toBe(shift(today(), 5));
 });
@@ -307,6 +292,7 @@ test('flags in-progress issues without a due date at the top until one is set', 
   await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(row(frame, 'MOB-4')).not.toHaveClass(/warning/);
   await expect(row(frame, 'MOB-4').locator('.bar')).toHaveCount(1);
+  await expect(row(frame, 'MOB-4').locator('.marker')).toHaveCount(1);
 });
 
 test('hides and shows a group from its header', async ({ page }) => {

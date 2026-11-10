@@ -360,43 +360,19 @@ function drawTrack(track, issue, schedule, pending) {
   const started = schedule.started !== null ? `Actual start: ${formatDay(schedule.started, { year: 'numeric' })}` : 'Not started';
   const completed = issue.state.type === 'completed' && issue.completedAt ? localDay(issue.completedAt) : null;
   const completion = completed !== null ? `\nCompleted: ${formatDay(completed, { year: 'numeric' })}` : '';
-  const lateDays = schedule.started - schedule.due;
-  const late = schedule.kind === 'late' ? `\nStarted ${lateDays} day${lateDays === 1 ? '' : 's'} after due date` : '';
-  const tooltip = `${issue.identifier} ${issue.title}\n${started}\nDue: ${formatDay(schedule.due, { year: 'numeric' })}${completion}${late}`;
-  if (completed !== null) {
-    const start = Math.min(schedule.started ?? completed, completed);
+  const due = schedule.due !== null ? `\nDue: ${formatDay(schedule.due, { year: 'numeric' })}` : '';
+  const tooltip = `${issue.identifier} ${issue.title}\n${started}${due}${completion}`;
+  // Every status follows one rule: the bar is the actual work and the due date is always the marker.
+  if (schedule.start !== null) {
     track.append(element('div', {
-      className: 'bar done',
+      className: `bar${completed !== null ? ' done' : ''}`,
       title: tooltip,
-      style: { left: `${dayToX(start, range, scale)}px`, width: `${(completed - start + 1) * px}px` }
+      style: { left: `${dayToX(schedule.start, range, scale)}px`, width: `${(schedule.end - schedule.start + 1) * px}px` }
     }, element('span', { className: 'bar-text' }, issue.title)));
-    if (schedule.due !== null) {
-      const marker = element('div', { className: 'marker', title: tooltip, style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px` } });
-      if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, null, marker));
-      track.append(marker);
-    }
-  } else if (schedule.kind === 'bar') {
-    const bar = element('div', {
-      className: 'bar',
-      title: tooltip,
-      style: { left: `${dayToX(schedule.started, range, scale)}px`, width: `${(schedule.due - schedule.started + 1) * px}px` }
-    }, element('span', { className: 'bar-text' }, issue.title));
-    const handle = element('span', { className: 'handle', title: 'Drag to change the due date' });
-    if (!pending) handle.addEventListener('pointerdown', event => startDrag(event, issue, schedule, bar, null));
-    bar.append(handle);
-    track.append(bar);
-  } else if (schedule.kind === 'marker' || schedule.kind === 'late') {
-    if (schedule.kind === 'late') {
-      track.append(
-        element('span', { className: 'late-link', style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px`, width: `${(lateDays - 0.5) * px}px` } }),
-        element('div', {
-          className: 'bar late',
-          title: tooltip,
-          style: { left: `${dayToX(schedule.started, range, scale)}px`, width: `${(schedule.end - schedule.started + 1) * px}px` }
-        }, element('span', { className: 'bar-text' }, issue.title)));
-    }
+  }
+  if (schedule.due !== null) {
     const marker = element('div', { className: 'marker', title: tooltip, style: { left: `${dayToX(schedule.due, range, scale) + px / 2}px` } });
-    if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, null, marker));
+    if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, marker));
     track.append(marker);
   }
 }
@@ -551,8 +527,6 @@ function render({ scrollTo = null } = {}) {
   const milestones = state.milestones.map(milestone => ({ milestone, day: dayFromDate(milestone.targetDate) }));
   const range = chartRange([
     ...state.issues.map(issue => issueSchedule(shown(issue), today)),
-    ...state.issues.filter(issue => issue.state.type === 'completed' && issue.completedAt)
-      .map(issue => ({ started: null, due: localDay(issue.completedAt) })),
     ...milestones.map(({ day }) => ({ started: null, due: day }))
   ], today, state.scale);
   state.range = range;
@@ -604,7 +578,7 @@ function render({ scrollTo = null } = {}) {
 }
 
 // Drags the due date (bar's right edge or marker). The start edge is never draggable.
-function startDrag(event, issue, schedule, bar, marker) {
+function startDrag(event, issue, schedule, marker) {
   if (event.button !== 0) return;
   event.preventDefault();
   const target = event.currentTarget;
@@ -618,13 +592,11 @@ function startDrag(event, issue, schedule, bar, marker) {
 
   const place = next => {
     day = next;
-    if (bar) bar.style.width = `${(day - schedule.started + 1) * pxPerDay()}px`;
-    else marker.style.left = `${dayToX(day, state.range, state.scale) + pxPerDay() / 2}px`;
+    marker.style.left = `${dayToX(day, state.range, state.scale) + pxPerDay() / 2}px`;
     input.value = dateFromDay(day);
   };
   const move = moveEvent => {
-    let next = xToDay(moveEvent.clientX - track.getBoundingClientRect().left, state.range, state.scale);
-    if (bar) next = Math.max(next, schedule.started);
+    const next = xToDay(moveEvent.clientX - track.getBoundingClientRect().left, state.range, state.scale);
     if (next !== day) place(next);
   };
   const end = commit => {

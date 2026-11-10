@@ -7,17 +7,20 @@ export const SCALES = {
 };
 
 // started: actual start day (startedAt), never the creation date.
-// A late issue started after its due date; it runs until it was finished, or until today.
+// The bar is the actual work, the same rule for every status: from the start until the issue was
+// finished, or until today while it is open. The due date is drawn separately as a marker.
+// A completed issue that never recorded a start is a one-day bar on its completion day.
 export function issueSchedule(issue, today) {
   const due = dayFromDate(issue.dueDate);
   const started = issue.startedAt ? localDay(issue.startedAt) : null;
-  if (due === null) return { kind: 'unscheduled', started, due };
-  if (started === null) return { kind: 'marker', started, due };
-  if (started <= due) return { kind: 'bar', started, due };
+  const kind = due === null ? 'unscheduled' : 'scheduled';
   const type = issue.state?.type;
-  if (type !== 'completed' && type !== 'canceled') return { kind: 'late', started, due, end: today };
-  const finishedAt = type === 'completed' ? issue.completedAt : issue.canceledAt;
-  return { kind: 'late', started, due, end: finishedAt ? Math.max(localDay(finishedAt), started) : started };
+  const open = type !== 'completed' && type !== 'canceled';
+  const finishedAt = type === 'completed' ? issue.completedAt : type === 'canceled' ? issue.canceledAt : null;
+  const finished = finishedAt ? localDay(finishedAt) : null;
+  const start = started ?? (type === 'completed' ? finished : null);
+  if (start === null) return { kind, started, due, start: null, end: null };
+  return { kind, started, due, start, end: Math.max(open ? today : finished ?? start, start) };
 }
 
 const weekday = day => (day + 4) % 7; // 0 = Sunday; day 0 was a Thursday.

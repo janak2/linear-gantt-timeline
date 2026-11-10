@@ -6,34 +6,38 @@ import { SCALES, arrange, chartRange, chartWidth, dayToX, issueOrder, issueSched
 const day = dayFromDate;
 process.env.TZ = 'UTC';
 
-test('draws a bar from actual start to due date', () => {
-  assert.deepEqual(issueSchedule({ startedAt: '2026-10-20T09:00:00Z', dueDate: '2026-10-30' }), { kind: 'bar', started: day('2026-10-20'), due: day('2026-10-30') });
+const NOV_9 = day('2026-11-09');
+
+test('runs an open issue from its actual start to today, whether or not it is past the due date', () => {
+  const before = { startedAt: '2026-10-20T09:00:00Z', dueDate: '2026-11-30', state: { type: 'started' } };
+  const after = { startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30', state: { type: 'started' } };
+  assert.deepEqual(issueSchedule(before, NOV_9), { kind: 'scheduled', started: day('2026-10-20'), due: day('2026-11-30'), start: day('2026-10-20'), end: NOV_9 });
+  assert.deepEqual(issueSchedule(after, NOV_9), { kind: 'scheduled', started: day('2026-11-02'), due: day('2026-10-30'), start: day('2026-11-02'), end: NOV_9 });
 });
 
-test('shows a due-date marker for issues that have not started', () => {
-  assert.deepEqual(issueSchedule({ startedAt: null, dueDate: '2026-10-30', createdAt: '2026-10-01T00:00:00Z' }), { kind: 'marker', started: null, due: day('2026-10-30') });
+test('ends a finished issue on the day it was completed or canceled, before or after the due date', () => {
+  const issue = { startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30', completedAt: '2026-11-05T15:00:00Z', canceledAt: '2026-11-06T15:00:00Z' };
+  assert.equal(issueSchedule({ ...issue, state: { type: 'completed' } }, NOV_9).end, day('2026-11-05'));
+  assert.equal(issueSchedule({ ...issue, state: { type: 'canceled' } }, NOV_9).end, day('2026-11-06'));
+  assert.equal(issueSchedule({ ...issue, dueDate: '2026-12-01', state: { type: 'completed' } }, NOV_9).end, day('2026-11-05'));
+  assert.equal(issueSchedule({ ...issue, completedAt: null, state: { type: 'completed' } }, NOV_9).end, day('2026-11-02'));
 });
 
-test('runs a late issue from its actual start to today while it is not finished', () => {
-  const issue = { startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30', state: { type: 'started' } };
-  assert.deepEqual(issueSchedule(issue, day('2026-11-09')), { kind: 'late', started: day('2026-11-02'), due: day('2026-10-30'), end: day('2026-11-09') });
+test('draws a completed issue with no recorded start as one day on its completion date', () => {
+  const issue = { startedAt: null, dueDate: '2026-11-12', completedAt: '2026-11-09T17:00:00Z', state: { type: 'completed' } };
+  assert.deepEqual(issueSchedule(issue, NOV_9), { kind: 'scheduled', started: null, due: day('2026-11-12'), start: NOV_9, end: NOV_9 });
 });
 
-test('ends a finished late issue on the day it was completed or canceled', () => {
-  const late = { startedAt: '2026-11-02T00:00:00Z', dueDate: '2026-10-30', completedAt: '2026-11-05T15:00:00Z', canceledAt: '2026-11-06T15:00:00Z' };
-  const today = day('2026-11-09');
-  assert.equal(issueSchedule({ ...late, state: { type: 'completed' } }, today).end, day('2026-11-05'));
-  assert.equal(issueSchedule({ ...late, state: { type: 'canceled' } }, today).end, day('2026-11-06'));
-  assert.equal(issueSchedule({ ...late, completedAt: null, state: { type: 'completed' } }, today).end, day('2026-11-02'));
+test('draws no bar for issues that have not started, and never uses the creation date', () => {
+  const issue = { startedAt: null, dueDate: '2026-10-30', createdAt: '2026-10-01T00:00:00Z', state: { type: 'unstarted' } };
+  assert.deepEqual(issueSchedule(issue, NOV_9), { kind: 'scheduled', started: null, due: day('2026-10-30'), start: null, end: null });
+  assert.equal(issueSchedule({ ...issue, state: { type: 'canceled' }, canceledAt: '2026-11-01T00:00:00Z' }, NOV_9).start, null);
 });
 
-test('keeps a bar for issues that started on or before their due date, even when overdue', () => {
-  assert.deepEqual(issueSchedule({ startedAt: '2026-10-30T00:00:00Z', dueDate: '2026-10-30', state: { type: 'started' } }, day('2026-11-09')), { kind: 'bar', started: day('2026-10-30'), due: day('2026-10-30') });
-});
-
-test('puts issues without due dates in Unscheduled and never uses the creation date', () => {
-  assert.deepEqual(issueSchedule({ createdAt: '2026-10-01T00:00:00Z' }), { kind: 'unscheduled', started: null, due: null });
-  assert.equal(issueSchedule({ startedAt: '2026-10-20T00:00:00Z' }).kind, 'unscheduled');
+test('puts issues without due dates in Unscheduled but still draws their work', () => {
+  assert.equal(issueSchedule({ createdAt: '2026-10-01T00:00:00Z' }, NOV_9).kind, 'unscheduled');
+  const started = issueSchedule({ startedAt: '2026-10-20T00:00:00Z', state: { type: 'started' } }, NOV_9);
+  assert.deepEqual([started.kind, started.start, started.end], ['unscheduled', day('2026-10-20'), NOV_9]);
 });
 
 test('the range covers today and every date, aligned to weeks or months', () => {

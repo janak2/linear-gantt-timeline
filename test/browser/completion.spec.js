@@ -21,7 +21,7 @@ test('shows actual completion separately from the due date in the unified list',
   const dueX = await completed.locator('.marker').evaluate(node => parseFloat(node.style.left));
   expect(bar.width).toBe(20 * 12);
   expect(dueX - (bar.left + bar.width)).toBe(3 * 12 - 6);
-  await expect(completed.locator('.bar.done')).toHaveAttribute('title', /Due: Nov 12, 2026\nCompleted: Nov 9, 2026/);
+  await expect(completed.locator('.bar.done')).toHaveAttribute('title', /Due: Nov 12, 2026\nCompleted: Nov 9, 2026$/);
   await expect(row(frame, 'MOB-1').locator('time')).toHaveCount(0);
   await expect(row(frame, 'MOB-2').locator('time')).toHaveCount(0);
   for (const theme of ['dark', 'light']) {
