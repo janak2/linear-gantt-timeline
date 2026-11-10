@@ -16,13 +16,13 @@ test('changes the status and moves the issue to Completed', async ({ page, linea
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
   await expect(status(frame, 'MOB-2')).toHaveValue('todo');
-  await expect(sections(frame)).toHaveText(['Milestones2', 'Scheduled4', 'Unscheduled1', 'Completed1']);
+  await expect(sections(frame)).toHaveText(['Milestones2', 'Issues6']);
 
   await pick(status(frame, 'MOB-2'), 'Done');
   await expect(row(frame, 'MOB-2').locator('.save-state')).toHaveText('Saved');
   expect(linear.operations('GanttUpdateStatus').map(call => call.variables)).toEqual([{ id: 'project-mobile-issue-2', stateId: 'done' }]);
   expect(linear.issue('MOB-2').state.id).toBe('done');
-  await expect(sections(frame)).toHaveText(['Milestones2', 'Scheduled3', 'Unscheduled1', 'Completed2']);
+  await expect(sections(frame)).toHaveText(['Milestones2', 'Issues6']);
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-3', 'MOB-5', 'MOB-2']);
   await expect(status(frame, 'MOB-2')).toHaveValue('done');
   await expect(row(frame, 'MOB-2').locator('.dot')).toHaveAttribute('data-type', 'completed');
@@ -97,7 +97,7 @@ test('shows an error and restores the previous value when a save fails', async (
   await expect(row(frame, 'MOB-2').locator('.save-state')).toHaveText('Not saved');
   await expect(frame.locator('#notice')).toHaveText('MOB-2: Linear request failed (HTTP 500). Try again.');
   await expect(status(frame, 'MOB-2')).toHaveValue('todo');
-  await expect(sections(frame)).toHaveText(['Milestones2', 'Scheduled4', 'Unscheduled1', 'Completed1']);
+  await expect(sections(frame)).toHaveText(['Milestones2', 'Issues6']);
   expect(linear.issue('MOB-2').state.id).toBe('todo');
 
   linear.respondOnce('GanttUpdateAssignee', { status: 400, body: { errors: [{ extensions: { code: 'FORBIDDEN', userPresentableMessage: 'You cannot edit issues in this team.' } }] } });

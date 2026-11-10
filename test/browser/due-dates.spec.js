@@ -96,7 +96,7 @@ test('draws an issue that started after its due date as a late bar joined to its
   await expect(track().locator('.marker, .late-link, .bar.late')).toHaveCount(0);
 });
 
-test('sets a due date with the date picker and moves the issue out of Unscheduled', async ({ page, linear }) => {
+test('sets a due date with the date picker in the shared issue list', async ({ page, linear }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
   const target = shift(today(), 20);
@@ -104,7 +104,7 @@ test('sets a due date with the date picker and moves the issue out of Unschedule
   await row(frame, 'MOB-3').locator('.due-input').press('Enter');
   await expect(row(frame, 'MOB-3').locator('.save-state')).toHaveText('Saved');
   expect(linear.issue('MOB-3').dueDate).toBe(target);
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled5', 'Completed1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(row(frame, 'MOB-3').locator('.marker')).toHaveCount(1);
 });
 
@@ -115,7 +115,7 @@ test('clears a due date', async ({ page, linear }) => {
   await expect(row(frame, 'MOB-2').locator('.save-state')).toHaveText('Saved');
   expect(linear.issue('MOB-2').dueDate).toBe(null);
   expect(linear.operations('GanttUpdateDueDate')[0].variables).toEqual({ id: 'project-mobile-issue-2', dueDate: null });
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled3', 'Unscheduled2', 'Completed1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(row(frame, 'MOB-2').locator('.clear')).toBeDisabled();
 });
 
@@ -196,7 +196,7 @@ test('shows issues that match any of the picked assignees or statuses', async ({
   await filterBy(frame, 'assignee');
   await filterBy(frame, 'status', 'Todo', 'Done');
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-6', 'MOB-2', 'MOB-3', 'MOB-5']);
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled2', 'Unscheduled1', 'Completed1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues4']);
 
   await filterBy(frame, 'assignee', 'Sam Ortiz', 'Unassigned');
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-2', 'MOB-3']);
@@ -281,11 +281,11 @@ test('the filter menus work from the keyboard and Escape closes them without lea
   await expect(button).toHaveText('2 assignees');
 });
 
-test('groups completed issues under Completed whether or not they have a due date', async ({ page, linear }) => {
+test('keeps completed issues in the shared list whether or not they have a due date', async ({ page, linear }) => {
   linear.issue('MOB-3').state = linear.issue('MOB-5').state;
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled4', 'Completed2']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6', 'MOB-4', 'MOB-2', 'MOB-5', 'MOB-3']);
 });
 
@@ -293,8 +293,7 @@ test('flags in-progress issues without a due date at the top until one is set', 
   linear.issue('MOB-4').dueDate = null;
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
-  await expect(frame.locator('.row.section .label')).toHaveText(['In progress, no due date1', 'Milestones2', 'Scheduled3', 'Unscheduled1', 'Completed1']);
-  await expect(frame.locator('.row.section.warning .section-toggle')).toHaveCSS('color', 'rgb(242, 130, 138)');
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(frame.locator('.row.issue .identifier').first()).toHaveText('MOB-4');
   await expect(frame.locator('.row.issue.warning .identifier')).toHaveText(['MOB-4']);
   await expect(row(frame, 'MOB-4').locator('.no-due')).toHaveText('No due date');
@@ -305,7 +304,7 @@ test('flags in-progress issues without a due date at the top until one is set', 
   await row(frame, 'MOB-4').locator('.due-input').press('Enter');
   await expect(row(frame, 'MOB-4').locator('.save-state')).toHaveText('Saved');
   expect(linear.issue('MOB-4').dueDate).toBe(target);
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled4', 'Unscheduled1', 'Completed1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(row(frame, 'MOB-4')).not.toHaveClass(/warning/);
   await expect(row(frame, 'MOB-4').locator('.bar')).toHaveCount(1);
 });
@@ -313,12 +312,12 @@ test('flags in-progress issues without a due date at the top until one is set', 
 test('hides and shows a group from its header', async ({ page }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   const frame = await openGantt(page);
-  const scheduled = frame.locator('.section-toggle', { hasText: /^Scheduled/ });
+  const scheduled = frame.locator('.section-toggle', { hasText: /^Issues/ });
   await expect(scheduled).toHaveAttribute('aria-expanded', 'true');
   await scheduled.click();
   await expect(scheduled).toHaveAttribute('aria-expanded', 'false');
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled4', 'Unscheduled1', 'Completed1']);
-  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-3', 'MOB-5']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
+  await expect(frame.locator('.row.issue')).toHaveCount(0);
 
   await scheduled.focus();
   await page.keyboard.press('Enter');
@@ -335,41 +334,41 @@ test('keeps groups hidden across scale changes, filters, and refresh', async ({ 
   const frame = await openGantt(page);
   const hidden = frame.locator('.section-toggle[aria-expanded="false"]');
   await frame.locator('.section-toggle', { hasText: 'Milestones' }).click();
-  await frame.locator('.section-toggle', { hasText: 'Completed' }).click();
-  await expect(hidden).toHaveText(['Milestones2', 'Completed1']);
+  await frame.locator('.section-toggle', { hasText: /^Issues/ }).click();
+  await expect(hidden).toHaveText(['Milestones2', 'Issues6']);
 
   await frame.locator('[data-scale="month"]').click();
   await filterBy(frame, 'assignee', 'Maya Chen');
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled2', 'Completed1']);
-  await expect(hidden).toHaveText(['Milestones2', 'Completed1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues3']);
+  await expect(hidden).toHaveText(['Milestones2', 'Issues3']);
   await expect(frame.locator('.row.milestone-row')).toHaveCount(0);
-  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6']);
+  await expect(frame.locator('.row.issue')).toHaveCount(0);
 
   await frame.locator('#refresh').click();
   await expect.poll(() => linear.operations('GanttProjectIssues').length).toBe(2);
   await expect(frame.locator('#refresh')).toBeEnabled();
-  await expect(hidden).toHaveText(['Milestones2', 'Completed1']);
-  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-1', 'MOB-6']);
+  await expect(hidden).toHaveText(['Milestones2', 'Issues3']);
+  await expect(frame.locator('.row.issue')).toHaveCount(0);
 });
 
 test('remembers collapsed groups and the scale across reloads and projects', async ({ page, worker }) => {
   await page.goto(`https://linear.app${MOBILE}`);
   let frame = await openGantt(page);
-  await frame.locator('.section-toggle', { hasText: /^Scheduled/ }).click();
+  await frame.locator('.section-toggle', { hasText: /^Issues/ }).click();
   await frame.locator('[data-scale="month"]').click();
-  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'month', collapsed: ['Scheduled'], groupBy: 'none', sort: 'default', descending: false });
+  await expect.poll(() => stored(worker, 'view')).toEqual({ scale: 'month', collapsed: ['Issues'], groupBy: 'none', sort: 'default', descending: false });
 
   await page.reload();
   frame = await openGantt(page);
-  await expect(frame.locator('.section-toggle[aria-expanded="false"]')).toHaveText(['Scheduled4']);
-  await expect(frame.locator('.row.issue .identifier')).toHaveText(['MOB-3', 'MOB-5']);
+  await expect(frame.locator('.section-toggle[aria-expanded="false"]')).toHaveText(['Issues6']);
+  await expect(frame.locator('.row.issue')).toHaveCount(0);
   await expect(frame.locator('[data-scale="month"]')).toHaveAttribute('aria-pressed', 'true');
   await expect(frame.locator('[data-scale="week"]')).toHaveAttribute('aria-pressed', 'false');
   await expect(frame.locator('.units span').first()).toHaveText(/^[A-Z]/);
 
   await page.goto(`https://linear.app${WEBSITE}`);
   frame = await openGantt(page);
-  await expect(frame.locator('.section-toggle[aria-expanded="false"]')).toHaveText(['Scheduled1']);
+  await expect(frame.locator('.section-toggle[aria-expanded="false"]')).toHaveText(['Issues1']);
   await expect(frame.locator('.row.issue')).toHaveCount(0);
   await expect(frame.locator('[data-scale="month"]')).toHaveAttribute('aria-pressed', 'true');
 });

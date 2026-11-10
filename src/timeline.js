@@ -88,6 +88,10 @@ export function issueOrder(sort, descending) {
     const x = key(a);
     const y = key(b);
     if (!x || !y) return !x - !y;
+    if (sort === 'status' && descending) {
+      const finished = value => value[0] === STATE_TYPES.indexOf('completed') || value[0] === STATE_TYPES.indexOf('canceled');
+      if (finished(x) !== finished(y)) return finished(x) - finished(y);
+    }
     const index = x.findIndex((value, i) => value !== y[i]);
     return index === -1 ? 0 : (x[index] - y[index]) * (descending ? -1 : 1);
   };

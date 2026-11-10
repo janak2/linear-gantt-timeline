@@ -89,7 +89,7 @@ test("sorts by status in Linear's workflow order, then the state's position", ()
   const issues = [issue('done', state('completed', 0)), issue('review', state('started', 1)), issue('canceled', state('canceled', 0)),
     issue('todo', state('unstarted', 0)), issue('progress', state('started', 0)), issue('backlog', state('backlog', 0))];
   assert.deepEqual(sorted(issues, 'status'), ['backlog', 'todo', 'progress', 'review', 'done', 'canceled']);
-  assert.deepEqual(sorted(issues, 'status', true), ['canceled', 'done', 'review', 'progress', 'todo', 'backlog']);
+  assert.deepEqual(sorted(issues, 'status', true), ['review', 'progress', 'todo', 'backlog', 'canceled', 'done']);
 });
 
 test('sorts by priority from Urgent to Low with No priority last in both directions', () => {

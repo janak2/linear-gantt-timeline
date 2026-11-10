@@ -12,7 +12,7 @@ test('adds one Gantt tab beside the project tabs and shows the chart in the cont
   const frame = await openGantt(page);
   await expect(row(frame, 'MOB-1')).toBeVisible();
   await expect(frame.locator('.row.issue')).toHaveCount(6);
-  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Scheduled4', 'Unscheduled1', 'Completed1']);
+  await expect(frame.locator('.row.section .label')).toHaveText(['Milestones2', 'Issues6']);
   await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
 
   // The chart covers the content area only: Linear's sidebar and header stay visible.

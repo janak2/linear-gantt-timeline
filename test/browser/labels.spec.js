@@ -16,7 +16,7 @@ test("shows each issue's labels after its title, in the label's colour", async (
 
   await expect(chips(frame, 'MOB-3')).toHaveCount(0);
   await expect(row(frame, 'MOB-3').locator('.chips')).toHaveCount(0);
-  const heights = await frame.locator('.row.issue').evaluateAll(rows => new Set(rows.map(row => row.getBoundingClientRect().height)).size);
+  const heights = await frame.locator('.row.issue:not(:has(.completion))').evaluateAll(rows => new Set(rows.map(row => row.getBoundingClientRect().height)).size);
   expect(heights).toBe(1);
 });
 

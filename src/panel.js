@@ -358,9 +358,11 @@ function drawTrack(track, issue, schedule, pending) {
   const { range, scale } = state;
   const px = pxPerDay();
   const started = schedule.started !== null ? `Actual start: ${formatDay(schedule.started, { year: 'numeric' })}` : 'Not started';
+  const completed = issue.state.type === 'completed' && issue.completedAt ? localDay(issue.completedAt) : null;
+  const completion = completed !== null ? `\nCompleted: ${formatDay(completed, { year: 'numeric' })}` : '';
   const lateDays = schedule.started - schedule.due;
   const late = schedule.kind === 'late' ? `\nStarted ${lateDays} day${lateDays === 1 ? '' : 's'} after due date` : '';
-  const tooltip = `${issue.identifier} ${issue.title}\n${started}\nDue: ${formatDay(schedule.due, { year: 'numeric' })}${late}`;
+  const tooltip = `${issue.identifier} ${issue.title}\n${started}\nDue: ${formatDay(schedule.due, { year: 'numeric' })}${completion}${late}`;
   if (schedule.kind === 'bar') {
     const bar = element('div', {
       className: 'bar',
@@ -471,6 +473,7 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
   }, '×');
   clear.addEventListener('click', () => save(issue, 'dueDate', null));
   const started = schedule.started !== null ? `Started ${formatDay(schedule.started)}` : 'Not started';
+  const completed = display.state.type === 'completed' && display.completedAt ? localDay(display.completedAt) : null;
   const label = element('div', { className: 'label' },
     element('div', { className: 'line' },
       element('span', { className: 'status-icon' },
@@ -486,9 +489,12 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
       input,
       clear,
       element('span', { className: 'save-state', 'data-status': saving?.status, 'data-status-for': issue.id, title: saving?.message }, statusText(saving)),
-      ...(warning ? [element('span', { className: 'no-due' }, 'No due date')] : [])));
+      ...(warning ? [element('span', { className: 'no-due' }, 'No due date')] : [])),
+    ...(completed !== null ? [element('div', { className: 'line meta completion' },
+      element('time', { datetime: display.completedAt, title: `Actual completion date: ${formatDay(completed, { year: 'numeric' })}` },
+        `Completed ${formatDay(completed, { year: 'numeric' })}`))] : []));
   const track = element('div', { className: 'track' });
-  drawTrack(track, issue, schedule, pending);
+  drawTrack(track, display, schedule, pending);
   return element('div', { className: `row issue${pending ? ' pending' : ''}${warning ? ' warning' : ''}`, 'data-issue': issue.id, style: { '--state': color, '--depth': depth } }, label, track);
 }
 
@@ -563,17 +569,14 @@ function render({ scrollTo = null } = {}) {
   const completed = [...done.filter(dated).sort(bySchedule), ...done.filter(item => !dated(item)).sort(byIdentifier)];
   const canceledIssues = [...canceled.filter(dated).sort(bySchedule), ...canceled.filter(item => !dated(item)).sort(byIdentifier)];
   const order = issueOrder(state.sort, state.descending);
-  const issueRows = warning => items => (state.groupBy === 'parent' ? arrange(items, order) : items.toSorted((a, b) => order(a.display, b.display)).map(item => ({ item, depth: 0 })))
-    .map(({ item, parent, depth }) => parent ? parentRow(parent) : issueRow(item, today, warning, depth));
-  const toRows = (warning = false) => (items, section) => state.groupBy === 'assignee'
-    ? assigneeGroups(items).flatMap(group => sectionRows(group.name, group.items, issueRows(warning), 'subsection', `${section}/${group.id}`))
-    : issueRows(warning)(items);
-  grid.append(...sectionRows('In progress, no due date', critical, toRows(true), 'section warning'));
+  const issues = [...critical, ...scheduled, ...unscheduled, ...completed, ...canceledIssues];
+  const issueRows = items => (state.groupBy === 'parent' ? arrange(items, order) : items.toSorted((a, b) => order(a.display, b.display)).map(item => ({ item, depth: 0 })))
+    .map(({ item, parent, depth }) => parent ? parentRow(parent) : issueRow(item, today, item.display.state.type === 'started' && !dated(item), depth));
+  const toRows = (items, section) => state.groupBy === 'assignee'
+    ? assigneeGroups(items).flatMap(group => sectionRows(group.name, group.items, issueRows, 'subsection', `${section}/${group.id}`))
+    : issueRows(items);
   grid.append(...sectionRows('Milestones', milestones, items => items.map(milestoneRow)));
-  grid.append(...sectionRows('Scheduled', scheduled, toRows()));
-  grid.append(...sectionRows('Unscheduled', unscheduled, toRows()));
-  grid.append(...sectionRows('Completed', completed, toRows()));
-  grid.append(...sectionRows('Canceled', canceledIssues, toRows()));
+  grid.append(...sectionRows('Issues', issues, toRows));
   if (!visible.length) grid.append(element('p', { className: 'empty' }, state.issues.length ? 'No issues match these filters.' : 'This project has no issues yet.'));
   chart.replaceChildren(grid);
 

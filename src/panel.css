@@ -97,11 +97,6 @@ a:hover { text-decoration: underline; }
 .section-toggle:hover:not(:disabled) { background: transparent; color: var(--text); }
 .section-toggle::before { content: ""; order: -1; flex: none; border: 4px solid transparent; border-right: 0; border-left-color: currentColor; transform: rotate(90deg); transition: transform .15s; }
 .section-toggle[aria-expanded="false"]::before { transform: none; }
-.section.warning .section-toggle { color: var(--danger); }
-.section.warning .section-toggle::after {
-  content: "!" / ""; order: -1; flex: none; width: 14px; height: 13px; padding-top: 3px; clip-path: polygon(50% 0, 100% 100%, 0 100%);
-  background: var(--danger); color: var(--bg); font-size: 9px; font-weight: 700; line-height: 10px; text-align: center;
-}
 .gridline { position: absolute; top: 44px; bottom: 0; width: 1px; background: var(--grid); pointer-events: none; z-index: 0; }
 .gridline.major { background: color-mix(in srgb, var(--grid), var(--muted) 12%); }
 .today-line { position: absolute; top: 44px; bottom: 0; width: 2px; margin-left: -1px; background: var(--today); opacity: .7; pointer-events: none; z-index: 1; }
