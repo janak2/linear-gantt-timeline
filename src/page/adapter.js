@@ -297,7 +297,8 @@ function syncTheme() {
 }
 
 function onDocumentClick(event) {
-  if (view?.open && view.nav?.container.contains(event.target) && !view.tab?.contains(event.target)) {
+  const link = event.target.closest?.('a[href]');
+  if (view?.open && link && view.nav?.items.some(item => item.contains(link))) {
     close();
     schedule();
   }

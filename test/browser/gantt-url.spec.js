@@ -79,10 +79,26 @@ for (const router of ['history', 'navigation']) {
 test.describe('the /gantt address', () => {
   test.beforeEach(async ({ signIn }) => signIn());
 
-  test('goes back to the project address when the chart closes without Linear navigating', async ({ page }) => {
+  test('keeps Gantt open when clicking tab-row gaps, padding, and tab wrappers', async ({ page }) => {
     await page.goto(`https://linear.app${GANTT}`);
     await expect(panelHost(page)).toBeVisible();
     await page.locator('header .tabs').dispatchEvent('click');
+    await page.locator('header .tabs > div').first().dispatchEvent('click');
+    await page.locator('header').click({ position: { x: 1100, y: 10 } });
+    await page.waitForTimeout(150);
+    await expect(panelHost(page)).toBeVisible();
+    await expect(ganttTab(page)).toHaveAttribute('aria-pressed', 'true');
+    await expect(page).toHaveURL(`https://linear.app${GANTT}`);
+    expect(await notFound(page)).toBe(0);
+  });
+
+  test('goes back to the project address when clicking a native tab without Linear navigating', async ({ page }) => {
+    await page.goto(`https://linear.app${GANTT}`);
+    await expect(panelHost(page)).toBeVisible();
+    await page.locator('header .tabs a', { hasText: 'Overview' }).evaluate(link => {
+      link.addEventListener('click', event => event.preventDefault(), { once: true });
+    });
+    await page.locator('header .tabs a', { hasText: 'Overview' }).click();
     await expect(panelHost(page)).toBeHidden();
     await expect(page).toHaveURL(`https://linear.app${MOBILE}`);
     expect(await notFound(page)).toBe(0);
