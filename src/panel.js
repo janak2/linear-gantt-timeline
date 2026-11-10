@@ -387,6 +387,15 @@ function drawTrack(track, issue, schedule, pending) {
     if (!pending) marker.addEventListener('pointerdown', event => startDrag(event, issue, schedule, null, marker));
     track.append(marker);
   }
+  if (completed !== null) {
+    for (const [kind, day, text] of [['completed', completed, 'Completed'], ['due', schedule.due, 'Due']]) {
+      if (day === null) continue;
+      track.append(element('div', {
+        className: `chart-date chart-date-${kind}`,
+        style: { left: `${dayToX(day, range, scale) + px / 2}px` }
+      }, element('time', { datetime: dateFromDay(day) }, `${text} ${formatDay(day, { year: 'numeric' })}`)));
+    }
+  }
 }
 
 // Waits for the value to settle (typing a date, or arrowing through a list) before saving.
@@ -495,7 +504,7 @@ function issueRow({ issue, display, schedule }, today, warning = false, depth = 
         `Completed ${formatDay(completed, { year: 'numeric' })}`))] : []));
   const track = element('div', { className: 'track' });
   drawTrack(track, display, schedule, pending);
-  return element('div', { className: `row issue${pending ? ' pending' : ''}${warning ? ' warning' : ''}`, 'data-issue': issue.id, style: { '--state': color, '--depth': depth } }, label, track);
+  return element('div', { className: `row issue${completed !== null ? ' has-completion' : ''}${pending ? ' pending' : ''}${warning ? ' warning' : ''}`, 'data-issue': issue.id, style: { '--state': color, '--depth': depth } }, label, track);
 }
 
 function parentRow(parent) {
@@ -539,6 +548,8 @@ function render({ scrollTo = null } = {}) {
   const milestones = state.milestones.map(milestone => ({ milestone, day: dayFromDate(milestone.targetDate) }));
   const range = chartRange([
     ...state.issues.map(issue => issueSchedule(shown(issue), today)),
+    ...state.issues.filter(issue => issue.state.type === 'completed' && issue.completedAt)
+      .map(issue => ({ started: null, due: localDay(issue.completedAt) })),
     ...milestones.map(({ day }) => ({ started: null, due: day }))
   ], today, state.scale);
   state.range = range;
