@@ -552,14 +552,16 @@ function render({ scrollTo = null } = {}) {
     const display = shown(issue);
     return { issue, display, schedule: issueSchedule(display, today) };
   });
-  const open = visible.filter(item => item.issue.state.type !== 'completed');
+  const open = visible.filter(item => item.issue.state.type !== 'completed' && item.issue.state.type !== 'canceled');
   const done = visible.filter(item => item.issue.state.type === 'completed');
+  const canceled = visible.filter(item => item.issue.state.type === 'canceled');
   const undated = open.filter(item => !dated(item));
   const critical = undated.filter(item => item.issue.state.type === 'started').sort(byIdentifier);
   const scheduled = open.filter(dated).sort(bySchedule);
   const unscheduled = undated.filter(item => item.issue.state.type !== 'started')
     .sort((a, b) => STATE_ORDER.indexOf(b.issue.state.type) - STATE_ORDER.indexOf(a.issue.state.type) || byIdentifier(a, b));
   const completed = [...done.filter(dated).sort(bySchedule), ...done.filter(item => !dated(item)).sort(byIdentifier)];
+  const canceledIssues = [...canceled.filter(dated).sort(bySchedule), ...canceled.filter(item => !dated(item)).sort(byIdentifier)];
   const order = issueOrder(state.sort, state.descending);
   const issueRows = warning => items => (state.groupBy === 'parent' ? arrange(items, order) : items.toSorted((a, b) => order(a.display, b.display)).map(item => ({ item, depth: 0 })))
     .map(({ item, parent, depth }) => parent ? parentRow(parent) : issueRow(item, today, warning, depth));
@@ -571,6 +573,7 @@ function render({ scrollTo = null } = {}) {
   grid.append(...sectionRows('Scheduled', scheduled, toRows()));
   grid.append(...sectionRows('Unscheduled', unscheduled, toRows()));
   grid.append(...sectionRows('Completed', completed, toRows()));
+  grid.append(...sectionRows('Canceled', canceledIssues, toRows()));
   if (!visible.length) grid.append(element('p', { className: 'empty' }, state.issues.length ? 'No issues match these filters.' : 'This project has no issues yet.'));
   chart.replaceChildren(grid);
 
